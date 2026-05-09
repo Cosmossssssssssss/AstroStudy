@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% block title %}笔记 - AstroStudy{% endblock %}
+<!-- Blinko-style rewrite v2 -->
+
+{% block head_extra %}
+<!-- Toast UI Editor for overlay -->
+<link rel="stylesheet" href="/static/vendor/toastui-editor/toastui-editor.min.css" />
+<script src="/static/vendor/toastui-editor/toastui-editor-all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/java.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/bash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+    .notes-layout { display: flex; gap: 20px; min-height: calc(100vh - 140px); }
+    .notes-sidebar { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; }
+    .notes-main { flex: 1; min-width: 0; }
+
+    .npanel { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: var(--radius); overflow: hidden; }
+    .npanel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    .npanel-header .btn-add-folder { border: none; background: none; color: var(--accent); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; border-radius: 4px; }
+    .npanel-header .btn-add-folder:hover { background: var(--accent-light); }
+
+    .folder-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 13px; color: var(--text-secondary); text-decoration: none; cursor: pointer; border-left: 3px solid transparent; }
+    .folder-item:hover { background: var(--accent-light); color: var(--accent); }
+    .folder-item.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+    .folder-item i { font-size: 15px; width: 18px; text-align: center; }
+    .folder-item .folder-delete { margin-left: auto; font-size: 12px; color: #e53e3e; opacity: 0; transition: opacity 0.3s ease; cursor: pointer; border: none; background: none; padding: 0 2px; }
+    .folder-item:hover .folder-delete { opacity: 0.7; }
+    .folder-item .folder-delete:hover { opacity: 1; }
+
+    .quick-link { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 13px; color: var(--text-secondary); text-decoration: none; border-left: 3px solid transparent; }
+    .quick-link:hover { background: var(--accent-light); color: var(--accent); }
+    .quick-link.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+    .quick-link i { font-size: 15px; width: 18px; text-align: center; }
+    .quick-link .badge { margin-left: auto; font-size: 11px; background: var(--accent); color: white; padding: 0 6px; border-radius: 8px; min-width: 18px; text-align: center; }
+
+    .recent-item { display: block; padding: 8px 14px; font-size: 12px; color: var(--text-secondary); text-decoration: none; border-bottom: 1px solid var(--border); }
+    .recent-item:last-child { border-bottom: none; }
+    .recent-item:hover { background: var(--accent-light); color: var(--accent); }
+    .recent-item .recent-title { display: block; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .recent-item .recent-time { font-size: 11px; color: var(--text-muted); }
+    .folder-empty { padding: 16px 14px; font-size: 12px; color: var(--text-muted); text-align: center; }
+
+    .note-card { text-decoration: none !important; color: inherit !important; margin-bottom: 0; transition: box-shadow 0.3s ease; position: relative; cursor: pointer; }
+    .note-card:hover { box-shadow: var(--shadow-md); }
+    .note-preview { font-size: 13px; color: var(--text-secondary); line-height: 1.6; max-height: 80px; overflow: hidden; margin-bottom: 8px; }
+    .note-preview p { margin: 0 0 4px 0; }
+    .note-preview code { font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+    .note-preview ul, .note-preview ol { margin: 0; padding-left: 16px; }
+    .card-tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; background: var(--accent-light); color: var(--accent); margin-right: 4px; margin-bottom: 4px; }
+
+/* ─── Sparkle particle effect ─── */
+.sparkle-particle {
+    position: fixed; pointer-events: none; z-index: 10000;
+    font-size: 15px; line-height: 1;
+    animation: sparkleBurst 0.7s ease-out forwards;
+}
+@keyframes sparkleBurst {
+    0%   { opacity: 1; transform: translate(0,0) scale(1.2); }
+    40%  { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0.1) rotate(var(--sr, 0deg)); }
+}
+
+/* ─── Badge pop-in animation ─── */
+@keyframes badgePopIn {
+    0%   { transform: scale(0); opacity: 0; }
+    55%  { transform: scale(1.3); }
+    75%  { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.badge-pop { animation: badgePopIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* ─── Pinned card styling ─── */
+.note-card.pinned-card {
+    border-left: 4px solid #6366f1 !important;
+    background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, var(--glass-bg) 50%) !important;
+    box-shadow: 0 0 12px rgba(99,102,241,0.08), var(--shadow-sm);
+}
+.note-card .pin-badge {
+    background: #6366f1; color: white;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+    flex-shrink: 0;
+}
+
+/* ─── Favorited card styling ─── */
+.note-card.fav-card {
+    border-top: 3px solid #d97706 !important;
+    background: linear-gradient(180deg, rgba(251,191,36,0.04) 0%, var(--glass-bg) 30%) !important;
+}
+.note-card .fav-badge {
+    background: linear-gradient(135deg, #f59e0b, #d97706); color: white;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; box-shadow: 0 2px 8px rgba(245,158,11,0.35);
+    flex-shrink: 0;
+}
+
+    .tag-chip { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; background: var(--accent-light); color: var(--accent); text-decoration: none; }
+    .tag-chip:hover { background: var(--accent); color: #fff; }
+
+    /* Quick Capture */
+    .quick-capture { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+    .quick-capture:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    .quick-capture textarea { border: none; outline: none; resize: none; width: 100%; background: transparent; font-size: 14px; font-family: inherit; color: var(--text-primary); line-height: 1.5; min-height: 24px; max-height: 200px; }
+    .quick-capture textarea::placeholder { color: var(--text-muted); }
+    .quick-capture-actions { display: none; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .quick-capture.active .quick-capture-actions { display: flex; }
+    .quick-capture .capture-hint { font-size: 11px; color: var(--text-muted); }
+    .quick-capture .capture-hint kbd { background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--text-secondary); font-family: inherit; font-weight: 600; box-shadow: var(--neu-pressed); }
+
+    /* Edit Overlay */
+    .note-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1050; display: none; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+    .note-overlay.open { display: flex; }
+    .note-overlay-panel { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius); width: 100%; max-width: 800px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: overlayIn 0.2s ease; }
+    @keyframes overlayIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .overlay-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .overlay-header h3 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; }
+    .overlay-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+    /* Toast UI Editor in overlay */
+    #overlayEditor .toastui-editor-defaultUI { border: none !important; border-radius: 0 !important; }
+    #overlayEditor .toastui-editor-toolbar { border-bottom: 1px solid var(--border) !important; border-radius: 0 !important; background: var(--card-bg) !important; padding: 4px 8px !important; }
+    /* Fix toolbar icons: prevent hover jitter and hide */
+    #overlayEditor .toastui-editor-toolbar button { border-radius: 6px !important; transform: none !important; position: relative !important; }
+    #overlayEditor .toastui-editor-toolbar button:hover,
+    #overlayEditor .toastui-editor-toolbar button:active { background: var(--accent-light) !important; transform: none !important; }
+    #overlayEditor .toastui-editor-toolbar button svg,
+    #overlayEditor .toastui-editor-toolbar button .toastui-editor-icons { transition: none !important; transform: none !important; }
+    #overlayEditor .toastui-editor-contents { padding: 16px 20px !important; font-size: 14px !important; line-height: 1.8 !important; }
+    #overlayEditor .toastui-editor-mode-switch { display: none !important; }
+    /* Inline code style in overlay editor */
+    #overlayEditor .toastui-editor-contents code,
+    #overlayEditor .toastui-editor-ww-node code {
+        background: var(--accent-light) !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-size: 0.9em !important;
+        color: #e11d48 !important;
+    }
+    .overlay-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid var(--border); }
+
+    @media (max-width: 768px) {
+        .notes-layout { flex-direction: column; }
+        .notes-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+        .npanel { flex: 1; min-width: 200px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <h1>笔记</h1>
+        <p>Markdown 编辑 · 块级引用 · 双向链接</p>
+    </div>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addNote">
+        <i class="bi bi-plus-lg"></i> 新笔记
+    </button>
+</div>
+
+<!-- ═══ Quick Capture Bar ═══ -->
+<div class="quick-capture" id="quickCapture">
+    <textarea id="captureText" placeholder="想法、灵感、笔记... 直接输入，Ctrl+Enter 速记" rows="1" oninput="autoGrow(this);toggleCaptureActive()"></textarea>
+    <div class="quick-capture-actions">
+        <span class="capture-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 速记 | 支持 Markdown</span>
+        <button class="btn btn-primary btn-sm" onclick="quickCapture()">速记</button>
+    </div>
+</div>
+
+<div class="notes-layout">
+    <!-- ─── Left Sidebar ─── -->
+    <div class="notes-sidebar">
+        <div class="npanel">
+            <div class="npanel-header">
+                <span><i class="bi bi-folder2"></i> 文件夹</span>
+                <button class="btn-add-folder" onclick="showNewFolderInput()" title="新建文件夹">+</button>
+            </div>
+            <div id="folderTree">
+                <a href="{{ url_for('notes.notes') }}" class="quick-link {% if not folder_filter and not fav_filter %}active{% endif %}">
+                    <i class="bi bi-journal-text"></i> 所有笔记
+                    <span class="badge" style="background:var(--text-muted);">{{ notes|length if not folder_filter and not fav_filter else '...' }}</span>
+                </a>
+                <a href="{{ url_for('notes.notes', folder='none', q=q, course=course_filter, tag=tag_filter) }}" class="folder-item {% if folder_filter == 'none' %}active{% endif %}">
+                    <i class="bi bi-file-earmark"></i> 未分类
+                </a>
+                {% for f in folders %}
+                <a href="{{ url_for('notes.notes', folder=f.id|string, q=q, course=course_filter, tag=tag_filter) }}" class="folder-item {% if folder_filter == f.id|string %}active{% endif %}">
+                    <i class="bi bi-folder"></i> {{ f.name }}
+                    <button class="folder-delete" onclick="event.preventDefault();event.stopPropagation();deleteFolder({{ f.id }},'{{ f.name }}')" title="删除文件夹">&times;</button>
+                </a>
+                {% endfor %}
+            </div>
+            <div id="newFolderRow" style="display:none;padding:8px 14px;border-top:1px solid var(--border);">
+                <div style="display:flex;gap:4px;">
+                    <input type="text" id="newFolderName" class="form-control form-control-sm" placeholder="文件夹名" style="font-size:12px;" onkeydown="if(event.key==='Enter')createFolder();if(event.key==='Escape')hideNewFolderInput();">
+                    <button class="btn btn-primary btn-sm" style="padding:2px 8px;font-size:12px;" onclick="createFolder()"><i class="bi bi-check"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="npanel">
+            <a href="{{ url_for('notes.notes', fav='1', q=q, course=course_filter, tag=tag_filter, folder=folder_filter) }}" class="quick-link {% if fav_filter %}active{% endif %}" style="border-radius:var(--radius);">
+                <i class="bi bi-star-fill" style="color:#d97706;"></i> 收藏夹
+                {% if fav_count %}<span class="badge" style="background:#d97706;">{{ fav_count }}</span>{% endif %}
+            </a>
+        </div>
+
+        <div class="npanel">
+            <div class="npanel-header"><span><i class="bi bi-clock-history"></i> 最近编辑</span></div>
+            <div id="recentNotes"><div class="folder-empty">加载中...</div></div>
+        </div>
+    </div>
+
+    <!-- ─── Main: Notes Grid ─── -->
+    <div class="notes-main">
+        <!-- Filters -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+            <form method="GET" action="{{ url_for('notes.notes') }}" style="display:flex;gap:8px;flex:1;min-width:200px;">
+                <input name="q" class="form-control" placeholder="搜索笔记内容..." value="{{ q }}" style="max-width:320px;font-size:13px;">
+                {% if tag_filter %}<input type="hidden" name="tag" value="{{ tag_filter }}">{% endif %}
+                {% if folder_filter %}<input type="hidden" name="folder" value="{{ folder_filter }}">{% endif %}
+                {% if fav_filter %}<input type="hidden" name="fav" value="1">{% endif %}
+                <button type="submit" class="btn-outline" style="cursor:pointer;"><i class="bi bi-search"></i></button>
+                {% if q or course_filter or tag_filter or folder_filter or fav_filter %}
+                <a href="{{ url_for('notes.notes') }}" class="btn-outline" style="padding:6px 12px;">清除</a>
+                {% endif %}
+            </form>
+            <!-- Compact inline filters -->
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <select class="form-select form-select-sm" style="width:78px;height:30px;font-size:11px;padding:2px 6px 2px 10px;border-radius:14px;" onchange="filterByFolder(this.value)">
+                    <option value="">分类</option>
+                    <option value="none" {% if folder_filter == 'none' %}selected{% endif %}>未分类</option>
+                    {% for f in folders %}<option value="{{ f.id }}" {% if folder_filter == f.id|string %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+                </select>
+                {% if all_tags %}
+                {% for t in all_tags %}
+                <a href="{{ url_for('notes.notes', tag=t.tag_name, q=q, course=course_filter, folder=folder_filter, fav=fav_filter) }}"
+                   class="tag-chip {% if tag_filter == t.tag_name %}active{% endif %}"
+                   style="{% if tag_filter == t.tag_name %}background:var(--accent);color:#fff;{% endif %}">
+                    {{ t.tag_name }} <small>({{ t.cnt }})</small>
+                </a>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Notes Grid -->
+        {% if notes %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+            {% for note in notes %}
+            <div class="card note-card {% if note.pinned %}pinned-card{% endif %} {% if note.favorited %}fav-card{% endif %}" data-note-id="{{ note.id }}">
+                <div class="badge-strip" style="position:absolute;top:-8px;right:10px;display:flex;gap:6px;z-index:2;">
+                {% if note.favorited %}
+                <div class="fav-badge badge-dot"><i class="bi bi-star-fill"></i></div>
+                {% endif %}
+                {% if note.pinned %}
+                <div class="pin-badge badge-dot"><i class="bi bi-pin-fill"></i></div>
+                {% endif %}
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;{% if note.favorited and note.pinned %}padding-right:68px;{% elif note.favorited or note.pinned %}padding-right:34px;{% endif %}">
+                    <div style="flex:1;">
+                        <div style="font-size:15px;font-weight:600;margin-bottom:4px;">{{ note.title }}</div>
+                        {% if note.course_name %}
+                        <span style="font-size:11px;color:{{ note.course_color or '#6366f1' }};background:{{ note.course_color or '#6366f1' }}15;padding:1px 8px;border-radius:10px;">{{ note.course_name }}</span>
+                        {% endif %}
+                        {% if note.folder_name %}
+                        <span style="font-size:11px;color:var(--text-secondary);background:var(--accent-light);padding:1px 8px;border-radius:10px;margin-left:4px;"><i class="bi bi-folder2" style="font-size:10px;"></i> {{ note.folder_name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Content preview (rendered by JS) -->
+                <div class="note-preview" data-raw="{{ (note.markdown or note.content or '')|truncate(500, True) }}" id="preview-{{ note.id }}" style="min-height:20px;"></div>
+
+                <!-- Tags -->
+                <div style="min-height:4px;" id="tags-{{ note.id }}"></div>
+
+                <!-- Footer -->
+                <div style="font-size:11px;color:#a0aec0;display:flex;gap:12px;align-items:center;">
+                    <span><i class="bi bi-clock"></i> {{ (note.updated_at or note.created_at)[:16] }}</span>
+                    {% if note.block_count %}<span><i class="bi bi-grid-3x3"></i> {{ note.block_count }} 块</span>{% endif %}
+                    {% if note.backlink_count %}<span><i class="bi bi-link-45deg"></i> {{ note.backlink_count }} 引用</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card" style="text-align:center;padding:48px;">
+            <i class="bi bi-journal-text" style="font-size:48px;color:#e2e8f0;display:block;margin-bottom:16px;"></i>
+            {% if q or course_filter or tag_filter or folder_filter or fav_filter %}
+            <div style="font-size:14px;color:#a0aec0;">没有找到匹配的笔记</div>
+            <a href="{{ url_for('notes.notes') }}" style="font-size:13px;color:var(--accent);">查看全部笔记</a>
+            {% else %}
+            <div style="font-size:14px;color:#a0aec0;margin-bottom:8px;">还没有笔记</div>
+            <div style="font-size:13px;color:#cbd5e0;">在上方速记栏输入，或点击「新笔记」开始</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ═══ Edit Overlay ═══ -->
+<div class="note-overlay" id="noteOverlay" onclick="if(event.target===this)closeOverlay()">
+    <div class="note-overlay-panel">
+        <div class="overlay-header">
+            <input type="text" id="overlayTitle" style="border:none;outline:none;font-size:16px;font-weight:600;flex:1;background:transparent;color:var(--text-primary);" placeholder="笔记标题">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <button type="button" class="btn-outline btn-sm" id="overlayFavBtn" onclick="event.stopPropagation();toggleOverlayFav()" style="cursor:pointer;font-size:13px;" title="收藏"><i class="bi bi-star"></i></button>
+                <form method="POST" id="overlayPinForm" style="margin:0;">
+                    <button type="submit" class="btn-outline btn-sm" id="overlayPinBtn" style="cursor:pointer;"><i class="bi bi-pin"></i></button>
+                </form>
+                <form method="POST" id="overlayDeleteForm" style="margin:0;" onsubmit="return confirm('删除这篇笔记？')">
+                    <button type="submit" class="btn-outline btn-sm" style="cursor:pointer;color:#e53e3e;"><i class="bi bi-trash"></i></button>
+                </form>
+                <button class="btn-outline btn-sm" onclick="window.location='/notes/'+currentNoteId" style="cursor:pointer;" title="全屏编辑"><i class="bi bi-arrows-fullscreen"></i></button>
+                <button class="btn-outline btn-sm" onclick="closeOverlay()" style="cursor:pointer;"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </div>
+        <div class="overlay-body" style="padding:0;">
+            <div id="overlayEditor" style="min-height:350px;"></div>
+        </div>
+        <div class="overlay-footer">
+            <span class="capture-hint" id="overlayStatus">就绪</span>
+            <div style="display:flex;gap:8px;">
+                <button class="btn-outline btn-sm" onclick="closeOverlay()" style="cursor:pointer;">关闭</button>
+                <button class="btn btn-primary btn-sm" onclick="saveOverlay()">保存 <kbd style="font-size:10px;background:rgba(255,255,255,0.2);border:none;padding:1px 3px;">Ctrl+S</kbd></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="addNote" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('notes.add_note') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size:16px;">新笔记</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">标题</label><input name="title" class="form-control" required autofocus></div>
+                    <div class="mb-3">
+                        <label class="form-label">关联课程</label>
+                        <select name="course_id" class="form-select"><option value="">无</option>{% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">文件夹</label>
+                        <select name="folder_id" class="form-select"><option value="">未分类</option>{% for f in folders %}<option value="{{ f.id }}" {% if folder_filter == f.id|string %}selected{% endif %}>{{ f.name }}</option>{% endfor %}</select>
+                    </div>
+                    <div class="mb-3"><label class="form-label">初始内容</label><textarea name="content" class="form-control" rows="6" placeholder="用 Markdown 开始写..." style="font-family:inherit;"></textarea></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建并编辑</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══ Quick Capture ═══
+function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+function toggleCaptureActive() {
+    const el = document.getElementById('quickCapture');
+    const text = document.getElementById('captureText');
+    if (text.value.trim()) { el.classList.add('active'); }
+    else { el.classList.remove('active'); }
+}
+document.getElementById('captureText').addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); quickCapture(); }
+});
+function quickCapture() {
+    const el = document.getElementById('captureText');
+    const content = el.value.trim();
+    if (!content) return;
+    fetch('/api/notes/quick-capture', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content})
+    }).then(r => r.json()).then(data => {
+        if (data.ok) { location.reload(); }
+    });
+}
+
+// ═══ Edit Overlay ═══
+let currentNoteId = null;
+// ═══ Overlay Editor (Toast UI) ═══
+let overlayEditor = null;
+
+function initOverlayEditor() {
+    if (overlayEditor) return;
+    const container = document.getElementById('overlayEditor');
+    if (!container || typeof toastui === 'undefined') return;
+    overlayEditor = new toastui.Editor({
+        el: container,
+        initialValue: '',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'vertical',
+        height: '350px',
+        toolbarItems: [
+            ['heading', 'bold', 'italic', 'strike'],
+            ['hr', 'quote'],
+            ['ul', 'ol', 'task'],
+            ['table', 'link'],
+            ['code', 'codeblock']
+        ],
+        language: 'zh-CN',
+        usageStatistics: false,
+    });
+}
+
+function openOverlay(noteId) {
+    currentNoteId = noteId;
+    const overlay = document.getElementById('noteOverlay');
+    document.getElementById('overlayStatus').textContent = '加载中...';
+    initOverlayEditor();
+    fetch('/api/notes/' + noteId).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); return; }
+        const note = data.note;
+        document.getElementById('overlayTitle').value = note.title;
+        // Update fav button state
+        const favBtn = document.getElementById('overlayFavBtn');
+        const favIcon = favBtn.querySelector('i');
+        if (data.note && data.note.favorited) {
+            favIcon.className = 'bi bi-star-fill';
+            favIcon.style.color = '#d97706';
+        } else {
+            favIcon.className = 'bi bi-star';
+            favIcon.style.color = '';
+        }
+        document.getElementById('overlayPinForm').action = '/notes/' + noteId + '/pin';
+        // Update pin button state
+        const pinBtn = document.getElementById('overlayPinBtn');
+        const pinIcon = pinBtn.querySelector('i');
+        if (data.note && data.note.pinned) {
+            pinIcon.className = 'bi bi-pin-fill';
+            pinIcon.style.color = '#6366f1';
+        } else {
+            pinIcon.className = 'bi bi-pin';
+            pinIcon.style.color = '';
+        }
+        document.getElementById('overlayDeleteForm').action = '/notes/' + noteId + '/delete';
+        if (overlayEditor) overlayEditor.setMarkdown(data.md_content || '');
+        overlay.classList.add('open');
+        document.getElementById('overlayStatus').textContent = '已加载';
+    });
+}
+function closeOverlay() {
+    document.getElementById('noteOverlay').classList.remove('open');
+    currentNoteId = null;
+}
+/* ─── Sparkle burst helper ─── */
+function sparkleBurst(x, y, color, count) {
+    var chars = ['✦','✧','⋆','✶','⭑','✴','·'];
+    for (var i = 0; i < (count || 12); i++) {
+        var p = document.createElement('span');
+        p.className = 'sparkle-particle';
+        p.textContent = chars[Math.floor(Math.random() * chars.length)];
+        p.style.left = x + 'px';
+        p.style.top = y + 'px';
+        p.style.color = color;
+        p.style.fontSize = (10 + Math.random() * 10) + 'px';
+        var angle = Math.random() * Math.PI * 2;
+        var dist = 25 + Math.random() * 55;
+        p.style.setProperty('--sx', Math.cos(angle) * dist + 'px');
+        p.style.setProperty('--sy', Math.sin(angle) * dist + 'px');
+        p.style.setProperty('--sr', ((Math.random() - 0.5) * 360) + 'deg');
+        p.style.animationDuration = (0.4 + Math.random() * 0.5) + 's';
+        document.body.appendChild(p);
+        setTimeout(function(){ if (p.parentNode) p.remove(); }, 1000);
+    }
+}
+
+function toggleOverlayFav() {
+    if (!currentNoteId) return;
+    var btn = document.getElementById('overlayFavBtn');
+    var icon = btn.querySelector('i');
+    var isFav = icon.classList.contains('bi-star-fill');
+    var becomingFav = !isFav;
+    if (isFav) {
+        icon.className = 'bi bi-star';
+        icon.style.color = '';
+    } else {
+        icon.className = 'bi bi-star-fill';
+        icon.style.color = '#d97706';
+        var rect = btn.getBoundingClientRect();
+        sparkleBurst(rect.left + rect.width/2, rect.top + rect.height/2, '#f59e0b', 14);
+    }
+    // Real-time sync: update the card behind overlay
+    var card = document.querySelector('.note-card[data-note-id="' + currentNoteId + '"]');
+    if (card) {
+        var strip = card.querySelector('.badge-strip');
+        if (!strip) {
+            strip = document.createElement('div');
+            strip.className = 'badge-strip';
+            strip.style.cssText = 'position:absolute;top:-8px;right:10px;display:flex;gap:6px;z-index:2;';
+            card.insertBefore(strip, card.firstChild);
+        }
+        var contentRow = card.querySelector('div[style*="padding-right"]');
+        if (becomingFav) {
+            card.classList.add('fav-card');
+            if (!card.querySelector('.fav-badge')) {
+                var fb = document.createElement('div');
+                fb.className = 'fav-badge badge-dot badge-pop';
+                fb.innerHTML = '<i class="bi bi-star-fill"></i>';
+                fb.addEventListener('animationend', function(){ fb.classList.remove('badge-pop'); });
+                strip.appendChild(fb);
+            }
+            if (contentRow) contentRow.style.paddingRight = card.querySelector('.pin-badge') ? '68px' : '34px';
+        } else {
+            card.classList.remove('fav-card');
+            var fb2 = card.querySelector('.fav-badge');
+            if (fb2) fb2.remove();
+            if (contentRow) contentRow.style.paddingRight = card.querySelector('.pin-badge') ? '34px' : '0';
+        }
+    }
+    fetch('/notes/' + currentNoteId + '/favorite', {method:'POST'}).then(r=>r.json()).then(data => {
+        if (data.favorited) {
+            icon.className = 'bi bi-star-fill';
+            icon.style.color = '#d97706';
+        } else {
+            icon.className = 'bi bi-star';
+            icon.style.color = '';
+        }
+        // Reconcile card state with server
+        if (card) {
+            var strip2 = card.querySelector('.badge-strip');
+            if (!strip2) {
+                strip2 = document.createElement('div');
+                strip2.className = 'badge-strip';
+                strip2.style.cssText = 'position:absolute;top:-8px;right:10px;display:flex;gap:6px;z-index:2;';
+                card.insertBefore(strip2, card.firstChild);
+            }
+            var cr = card.querySelector('div[style*="padding-right"]');
+            if (data.favorited) {
+                card.classList.add('fav-card');
+                if (!card.querySelector('.fav-badge')) {
+                    var fb3 = document.createElement('div');
+                    fb3.className = 'fav-badge badge-dot';
+                    fb3.innerHTML = '<i class="bi bi-star-fill"></i>';
+                    strip2.appendChild(fb3);
+                }
+                if (cr) cr.style.paddingRight = card.querySelector('.pin-badge') ? '68px' : '34px';
+            } else {
+                card.classList.remove('fav-card');
+                var fb4 = card.querySelector('.fav-badge');
+                if (fb4) fb4.remove();
+                if (cr) cr.style.paddingRight = card.querySelector('.pin-badge') ? '34px' : '0';
+            }
+        }
+    });
+}
+function saveOverlay() {
+    if (!currentNoteId) return;
+    const title = document.getElementById('overlayTitle').value.trim();
+    const markdown = overlayEditor ? overlayEditor.getMarkdown() : '';
+    if (!title) { alert('标题不能为空'); return; }
+    document.getElementById('overlayStatus').textContent = '保存中...';
+    fetch('/api/notes/' + currentNoteId + '/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, markdown})
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            document.getElementById('overlayStatus').textContent = '已保存 ✓';
+            setTimeout(() => location.reload(), 500);
+        } else {
+            document.getElementById('overlayStatus').textContent = '保存失败: ' + (data.error || '未知错误');
+        }
+    });
+}
+// Ctrl+S in overlay
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 's' && currentNoteId) { e.preventDefault(); saveOverlay(); }
+    if (e.key === 'Escape' && currentNoteId) { closeOverlay(); }
+});
+
+// ═══ Pin form → close overlay + refresh ───
+var pinForm = document.getElementById('overlayPinForm');
+if (pinForm) {
+    pinForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var pinIcon = (document.getElementById('overlayPinBtn')||{}).querySelector&&document.getElementById('overlayPinBtn').querySelector('i');
+        if (pinIcon) {
+            var isPinning = !pinIcon.classList.contains('bi-pin-fill');
+            pinIcon.className = isPinning ? 'bi bi-pin-fill' : 'bi bi-pin';
+            pinIcon.style.color = isPinning ? '#6366f1' : '';
+        }
+        var noteId = currentNoteId;
+        if (isPinning) sessionStorage.setItem('justPinned', noteId);
+        closeOverlay();
+        fetch(this.action, {method:'POST'}).then(function(){
+            setTimeout(function(){ location.reload(); }, 300);
+        });
+    });
+}
+
+// ═══ Card Click → Open Overlay ═══
+document.querySelectorAll('.note-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+        if (e.target.closest('form') || e.target.closest('button')) return;
+        openOverlay(this.dataset.noteId);
+    });
+});
+
+// ═══ Markdown Preview on Cards ═══
+document.querySelectorAll('.note-preview').forEach(el => {
+    const raw = el.getAttribute('data-raw');
+    if (!raw || !raw.trim()) return;
+    try {
+        let html = marked.parse(raw.substring(0, 500));
+        // Strip images and large elements
+        html = html.replace(/<img[^>]*>/gi, '');
+        el.innerHTML = html;
+        el.querySelectorAll('pre code').forEach(block => {
+            try { hljs.highlightElement(block); } catch(e) {}
+        });
+    } catch(e) {
+        // Fallback: show plain text with basic formatting
+        el.textContent = raw.substring(0, 150).replace(/[\[\*#`>]/g, '') + (raw.length > 150 ? '...' : '');
+    }
+});
+
+// ═══ Folders ═══
+function showNewFolderInput() { document.getElementById('newFolderRow').style.display = 'block'; document.getElementById('newFolderName').focus(); }
+function hideNewFolderInput() { document.getElementById('newFolderRow').style.display = 'none'; document.getElementById('newFolderName').value = ''; }
+function createFolder() {
+    const name = document.getElementById('newFolderName').value.trim();
+    if (!name) return;
+    fetch('/api/folders', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) }).then(r => r.json()).then(data => { if (data.ok) location.reload(); });
+}
+function deleteFolder(id, name) {
+    if (!confirm('删除文件夹「' + name + '」？里面的笔记会移到未分类。')) return;
+    fetch('/api/folders/' + id, {method: 'DELETE'}).then(r => r.json()).then(data => { if (data.ok) location.reload(); });
+}
+function filterByFolder(folderId) {
+    const url = new URL(window.location);
+    if (folderId) url.searchParams.set('folder', folderId); else url.searchParams.delete('folder');
+    window.location = url;
+}
+
+// ═══ Recent Notes ═══
+fetch('/api/notes/recent?limit=5').then(r => r.json()).then(items => {
+    const el = document.getElementById('recentNotes');
+    if (!items.length) { el.innerHTML = '<div class="folder-empty">暂无记录</div>'; return; }
+    el.innerHTML = items.map(n => {
+        const t = n.updated_at ? n.updated_at.substring(5, 16) : '';
+        return '<a href="/notes/' + n.id + '" class="recent-item"><span class="recent-title">' + n.title + '</span><span class="recent-time">编辑于 ' + t + '</span></a>';
+    }).join('');
+});
+// Animate badge for just-pinned note
+(function(){
+    var nid = sessionStorage.getItem('justPinned');
+    if (nid) {
+        sessionStorage.removeItem('justPinned');
+        var badge = document.querySelector('.note-card[data-note-id="' + nid + '"] .badge-strip .pin-badge');
+        if (badge) { badge.classList.add('badge-pop'); badge.addEventListener('animationend', function(){ badge.classList.remove('badge-pop'); }); }
+    }
+})();
+</script>
+{% endblock %}

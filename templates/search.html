@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}搜索{% if q %}: {{ q }}{% endif %} - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>搜索{% if q %}: {{ q }}{% endif %}</h1>
+</div>
+
+{% if not q %}
+<div class="card" style="text-align:center;padding:48px;">
+    <i class="bi bi-search" style="font-size:40px;color:#e2e8f0;display:block;margin-bottom:12px;"></i>
+    <div style="font-size:14px;color:#a0aec0;">输入关键词搜索任务、课程、考试</div>
+</div>
+{% else %}
+
+<!-- Tasks -->
+{% if tasks %}
+<div class="card">
+    <div class="card-title"><i class="bi bi-check2-square"></i> 任务 ({{ tasks|length }})</div>
+    {% for t in tasks %}
+    <div class="task-item">
+        <div class="priority-dot priority-{{ t.priority }}"></div>
+        <div style="flex:1;">
+            <div style="font-size:14px;font-weight:500;">{{ t.title }}</div>
+            {% if t.description %}<div style="font-size:12px;color:#a0aec0;">{{ t.description[:80] }}</div>{% endif %}
+        </div>
+        {% if t.course_name %}<span class="course-tag" style="background:{{ t.course_color }};">{{ t.course_name }}</span>{% endif %}
+        <span style="font-size:12px;color:#a0aec0;">{{ '✓' if t.status == 'done' else '○' }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Courses -->
+{% if courses %}
+<div class="card">
+    <div class="card-title"><i class="bi bi-journal-bookmark"></i> 课程 ({{ courses|length }})</div>
+    {% for c in courses %}
+    <div class="task-item">
+        <span style="width:12px;height:12px;border-radius:4px;background:{{ c.color }};flex-shrink:0;"></span>
+        <div style="font-size:14px;font-weight:500;">{{ c.name }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Exams -->
+{% if exams %}
+<div class="card">
+    <div class="card-title"><i class="bi bi-calendar-event"></i> 考试 ({{ exams|length }})</div>
+    {% for e in exams %}
+    <div class="exam-card">
+        <div class="exam-days" style="background:{{ e.course_color or '#4A90D9' }};width:48px;height:48px;">
+            <span class="num" style="font-size:18px;">{{ (e.exam_date|string)[:10] }}</span>
+        </div>
+        <div>
+            <div style="font-weight:600;font-size:14px;">{{ e.name }}</div>
+            <div style="font-size:12px;color:#a0aec0;">{{ (e.exam_date|string)[:10] }}</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not tasks and not courses and not exams %}
+<div class="card" style="text-align:center;padding:48px;">
+    <i class="bi bi-search" style="font-size:40px;color:#e2e8f0;display:block;margin-bottom:12px;"></i>
+    <div style="font-size:14px;color:#a0aec0;">没有找到「{{ q }}」的相关结果</div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

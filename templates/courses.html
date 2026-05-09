@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}课程 - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <h1>课程管理</h1>
+        <p>管理你的学期和课程</p>
+    </div>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCourse">
+        <i class="bi bi-plus-lg"></i> 添加课程
+    </button>
+</div>
+
+<!-- Semesters -->
+<div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><i class="bi bi-calendar3"></i> 学期</span>
+        <button class="btn btn-outline" data-bs-toggle="modal" data-bs-target="#addSemester" style="font-size:12px;">
+            <i class="bi bi-plus"></i> 新学期
+        </button>
+    </div>
+    {% if semesters %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% for s in semesters %}
+        <span class="semester-tag">
+            {{ s.name }} <span class="semester-dates">{{ s.start_date[:10] }} ~ {{ s.end_date[:10] }}</span>
+        </span>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="color:#a0aec0;font-size:14px;">还没有学期信息，先添加一个学期吧</div>
+    {% endif %}
+</div>
+
+<!-- Courses list -->
+<div class="card">
+    <div class="card-title"><i class="bi bi-journal-bookmark"></i> 课程列表</div>
+    {% if courses %}
+    {% for c in courses %}
+    <div class="task-item">
+        <span style="width:12px;height:12px;border-radius:4px;background:{{ c.color }};flex-shrink:0;"></span>
+        <div class="task-title" style="font-weight:600;">{{ c.name }}</div>
+        <span style="font-size:12px;color:#a0aec0;">
+            {% if c.semester_name %}{{ c.semester_name }} · {% endif %}
+            {{ c.task_count }} 个待办
+        </span>
+        <form method="POST" action="{{ url_for('courses.delete_course', id=c.id) }}" style="margin:0;"
+              onsubmit="return confirm('确定删除课程「{{ c.name }}」？关联的任务将失去课程关联。')">
+            <button type="submit" style="border:none;background:none;color:#a0aec0;cursor:pointer;font-size:16px;">
+                <i class="bi bi-trash3"></i>
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:32px;color:#a0aec0;font-size:14px;">
+        还没有课程，点击右上角添加
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Course Modal -->
+<div class="modal fade" id="addCourse" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('courses.add_course') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size:16px;">添加课程</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">课程名称</label>
+                        <input name="name" class="form-control" placeholder="如：高等数学" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">颜色</label>
+                        <input name="color" type="color" value="#4A90D9" class="form-control form-control-color">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">所属学期</label>
+                        <select name="semester_id" class="form-select">
+                            <option value="">— 不限 —</option>
+                            {% for s in semesters %}
+                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:#e8ecf1;">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Semester Modal -->
+<div class="modal fade" id="addSemester" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('courses.add_semester') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size:16px;">添加学期</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">学期名称</label>
+                        <input name="name" class="form-control" placeholder="如：2026 春季" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">开始日期</label>
+                            <input name="start_date" type="date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">结束日期</label>
+                            <input name="end_date" type="date" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:#e8ecf1;">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

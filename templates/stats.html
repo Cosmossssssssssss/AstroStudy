@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}统计 - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>学习统计</h1>
+    <p>了解你的学习习惯</p>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ month_minutes }}</div>
+            <div class="stat-label">本月学习 (分钟)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ '%.1f'|format(month_minutes / 60) }}</div>
+            <div class="stat-label">本月学习 (小时)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ done_tasks }}/{{ total_tasks }}</div>
+            <div class="stat-label">任务完成</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            {% set rate = (done_tasks / total_tasks * 100) | int if total_tasks > 0 else 0 %}
+            <div class="stat-value" style="color:{% if rate >= 80 %}#38a169{% elif rate >= 50 %}#d69e2e{% else %}#e53e3e{% endif %};">{{ rate }}%</div>
+            <div class="stat-label">完成率</div>
+        </div>
+    </div>
+</div>
+
+<!-- Weekly chart -->
+<div class="card">
+    <div class="card-title"><i class="bi bi-bar-chart"></i> 近 7 天学习时长</div>
+    <div class="chart-bar" id="weekChart" style="height:160px;">
+        {% set max_min = [1] %}
+        {% for d in days %}{% if d.minutes > max_min[0] %}{% set _ = max_min.append(d.minutes) %}{% if max_min|length > 2 %}{% set _ = max_min.pop(0) %}{% endif %}{% endif %}{% endfor %}
+        {% set max_val = max_min[-1] %}
+        {% for d in days %}
+        {% set pct = ((d.minutes / max_val) * 100) | int if max_val > 0 else 0 %}
+        <div class="chart-col">
+            <div class="chart-value">{{ d.minutes }}m</div>
+            <div class="chart-fill" style="height:{{ pct if pct > 0 else 2 }}%;"></div>
+            <div class="chart-label">{{ d.date }}<br><span style="font-size:10px;">{{ d.weekday }}</span></div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Course breakdown -->
+<div class="card">
+    <div class="card-title"><i class="bi bi-pie-chart"></i> 课程学习时长分布</div>
+    {% if course_stats %}
+    {% for cs in course_stats %}
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e8ecf1;">
+        <span style="width:12px;height:12px;border-radius:4px;background:{{ cs.color }};flex-shrink:0;"></span>
+        <div style="flex:1;font-size:14px;font-weight:500;">{{ cs.name }}</div>
+        <div style="font-size:13px;color:#a0aec0;">{{ cs.total_minutes }} 分钟 ({{ '%.1f'|format(cs.total_minutes / 60) }}h)</div>
+        {% set max_course = course_stats[0].total_minutes if course_stats else 1 %}
+        <div style="width:100px;height:6px;background:#e8ecf1;border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:{{ (cs.total_minutes / max_course * 100) | int }}%;background:{{ cs.color }};border-radius:3px;"></div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align:center;padding:32px;color:#a0aec0;font-size:14px;">
+        还没有按课程记录的学习数据<br>
+        <span style="font-size:12px;">使用番茄钟关联课程后，数据会自动统计</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Heatmap -->
+<div class="card">
+    <div class="card-title"><i class="bi bi-calendar4-week"></i> 学习热力图（近一年）</div>
+    <div style="overflow-x:auto;padding:8px 0;">
+        <div id="heatmap" style="display:flex;gap:3px;align-items:flex-start;"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:#a0aec0;">
+            <span>少</span>
+            <span style="width:12px;height:12px;background:#ebedf0;border-radius:2px;display:inline-block;"></span>
+            <span style="width:12px;height:12px;background:#9be9a8;border-radius:2px;display:inline-block;"></span>
+            <span style="width:12px;height:12px;background:#40c463;border-radius:2px;display:inline-block;"></span>
+            <span style="width:12px;height:12px;background:#30a14e;border-radius:2px;display:inline-block;"></span>
+            <span style="width:12px;height:12px;background:#216e39;border-radius:2px;display:inline-block;"></span>
+            <span>多</span>
+        </div>
+    </div>
+</div>
+
+<!-- Data Export -->
+<div class="card">
+    <div class="card-title"><i class="bi bi-download"></i> 数据导出</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a href="{{ url_for('export.export_data', format='study') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;padding:12px 20px;text-decoration:none;">
+            <i class="bi bi-clock-history" style="font-size:18px;color:var(--accent);"></i>
+            <div>
+                <div style="font-weight:600;font-size:13px;">学习记录</div>
+                <div style="font-size:11px;color:#a0aec0;">日期、时长、课程</div>
+            </div>
+        </a>
+        <a href="{{ url_for('export.export_data', format='tasks') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;padding:12px 20px;text-decoration:none;">
+            <i class="bi bi-check2-square" style="font-size:18px;color:#38a169;"></i>
+            <div>
+                <div style="font-weight:600;font-size:13px;">任务列表</div>
+                <div style="font-size:11px;color:#a0aec0;">任务、优先级、状态、标签</div>
+            </div>
+        </a>
+        <a href="{{ url_for('export.export_data', format='pomodoro') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;padding:12px 20px;text-decoration:none;">
+            <i class="bi bi-stopwatch" style="font-size:18px;color:#d69e2e;"></i>
+            <div>
+                <div style="font-weight:600;font-size:13px;">番茄记录</div>
+                <div style="font-size:11px;color:#a0aec0;">时长、时间、关联任务</div>
+            </div>
+        </a>
+    </div>
+    <div style="font-size:11px;color:#a0aec0;margin-top:10px;">导出为 CSV 格式，可用 Excel 直接打开（已处理编码）</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/api/heatmap').then(r=>r.json()).then(data=>{
+    if(!data.length) return;
+    const container=document.getElementById('heatmap');
+    // Group into weeks
+    const startDate=new Date(data[0].date+'T00:00:00');
+    let dayOfWeek=(startDate.getDay()+6)%7; // Mon=0
+    let currentWeek=new Array(dayOfWeek).fill(null);
+    data.forEach(d=>{
+        currentWeek.push(d);
+        if(currentWeek.length===7){
+            weeks.push(currentWeek);
+            currentWeek=[];
+        }
+    });
+    var weeks=[];
+    // re-do properly
+    startDate=new Date(data[0].date+'T00:00:00');
+    dayOfWeek=(startDate.getDay()+6)%7;
+    currentWeek=new Array(dayOfWeek).fill(null);
+    data.forEach(d=>{
+        currentWeek.push(d);
+        if(currentWeek.length===7){
+            weeks.push(currentWeek);
+            currentWeek=[];
+        }
+    });
+    if(currentWeek.length) weeks.push(currentWeek);
+    // Weekday labels
+    const labelCol=document.createElement('div');
+    labelCol.style.cssText='display:flex;flex-direction:column;gap:3px;font-size:10px;color:#a0aec0;margin-right:4px;';
+    ['','','一','','三','','五',''].forEach(l=>{
+        const s=document.createElement('div');
+        s.style.cssText='height:12px;line-height:12px;';
+        s.textContent=l;
+        labelCol.appendChild(s);
+    });
+    container.appendChild(labelCol);
+    weeks.forEach(week=>{
+        const col=document.createElement('div');
+        col.style.cssText='display:flex;flex-direction:column;gap:3px;';
+        for(let i=0;i<7;i++){
+            const cell=document.createElement('div');
+            cell.style.cssText='width:12px;height:12px;border-radius:2px;background:#ebedf0;';
+            if(week[i]){
+                const m=week[i].minutes;
+                if(m>0) cell.style.background='#9be9a8';
+                if(m>=30) cell.style.background='#40c463';
+                if(m>=60) cell.style.background='#30a14e';
+                if(m>=120) cell.style.background='#216e39';
+                cell.title=week[i].date+': '+m+'分钟';
+            }else{
+                cell.style.opacity='0';
+            }
+            col.appendChild(cell);
+        }
+        container.appendChild(col);
+    });
+});
+</script>
+{% endblock %}

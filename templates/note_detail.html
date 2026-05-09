@@ -1,0 +1,767 @@
+{% extends "base.html" %}
+{% block title %}{{ note.title }} - 笔记{% endblock %}
+
+{% block head_extra %}
+<!-- Toast UI Editor (local) -->
+<link rel="stylesheet" href="/static/vendor/toastui-editor/toastui-editor.min.css" />
+<script src="/static/vendor/toastui-editor/toastui-editor-all.min.js"></script>
+<style>
+    /* ─── Full-height editor layout ─── */
+    body > .main { padding: 0; height: 100vh; min-height: unset; display: flex; flex-direction: column; }
+
+    /* ─── Top toolbar ─── */
+    .editor-toolbar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 20px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--glass-border);
+        flex-shrink: 0;
+    }
+    .editor-toolbar .title-input {
+        flex: 1; border: none; font-size: 17px; font-weight: 600;
+        background: transparent; color: var(--text); outline: none;
+    }
+    .editor-toolbar .title-input::placeholder { color: var(--text-muted); }
+    .toolbar-meta { display: flex; align-items: center; gap: 6px; }
+    .toolbar-meta .form-select { width: auto; font-size: 12px; padding: 4px 8px; border-radius: 6px; }
+    .dropdown-menu { z-index: 1050 !important; }
+    .dropdown-menu .form-select { position: relative; z-index: 1051; }
+
+    /* Inline code style in editor */
+    .toastui-editor-contents code,
+    .toastui-editor-ww-node code {
+        background: var(--accent-light) !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-size: 0.9em !important;
+        color: #e11d48 !important;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace !important;
+    }
+
+    /* ─── Toast UI Editor overrides ─── */
+    .editor-container {
+        flex: 1; display: flex; flex-direction: column;
+        min-height: 0; overflow: hidden;
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+    .toastui-editor-defaultUI {
+        border: none !important;
+        border-radius: 0 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    .toastui-editor-main { min-height: 0; }
+    .toastui-editor-toolbar {
+        border-bottom: 1px solid var(--glass-border) !important;
+        border-radius: 0 !important;
+        background: var(--glass-bg) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 4px 8px !important;
+    }
+    .toastui-editor-toolbar .toastui-editor-toolbar-group {
+        border: none !important;
+        margin: 0 2px !important;
+    }
+    /* Fix toolbar icons: prevent hover jitter and hide */
+    .toastui-editor-toolbar button {
+        border-radius: 6px !important;
+        
+        transform: none !important;
+        position: relative !important;
+    }
+    .toastui-editor-toolbar button:hover,
+    .toastui-editor-toolbar button:active {
+        background: var(--accent-light) !important;
+        transform: none !important;
+    }
+    .toastui-editor-toolbar button svg,
+    .toastui-editor-toolbar button .toastui-editor-icons,
+    .toastui-editor-toolbar button i {
+        
+        transform: none !important;
+    }
+    .toastui-editor-toolbar .toastui-editor-toolbar-divider {
+        background: #e2e8f0 !important;
+        margin: 4px 6px !important;
+    }
+    /* Hide mode switch */
+    .toastui-editor-mode-switch { display: none !important; }
+    .toastui-editor-contents {
+        padding: 24px 32px !important;
+        font-size: 15px !important;
+        line-height: 1.8 !important;
+        color: var(--text) !important;
+    }
+    .toastui-editor-ww-mode .toastui-editor-contents {
+        padding: 24px 32px !important;
+    }
+    .toastui-editor-contents p {
+        margin: 0.5em 0 !important;
+        line-height: 1.8 !important;
+    }
+    .toastui-editor-contents h1,
+    .toastui-editor-contents h2,
+    .toastui-editor-contents h3 {
+        margin: 1em 0 0.5em !important;
+        font-weight: 700 !important;
+        color: var(--text) !important;
+    }
+    .toastui-editor-contents code {
+        background: #f1f5f9 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-size: 0.9em !important;
+        color: #e11d48 !important;
+    }
+    .toastui-editor-contents pre {
+        background: #f8fafc !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        padding: 14px 16px !important;
+    }
+    .toastui-editor-contents blockquote {
+        border-left: 4px solid var(--accent) !important;
+        background: var(--accent-light) !important;
+        padding: 8px 16px !important;
+        border-radius: 0 8px 8px 0 !important;
+        color: var(--text-secondary) !important;
+        margin: 0.8em 0 !important;
+        transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    }
+    .toastui-editor-contents table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+    }
+    .toastui-editor-contents th,
+    .toastui-editor-contents td {
+        border: 1px solid var(--border) !important;
+        padding: 8px 12px !important;
+    }
+    .toastui-editor-contents th {
+        background: var(--accent-light) !important;
+        font-weight: 600 !important;
+        transition: background-color 0.3s ease;
+    }
+    /* Ensure there's always clickable space after tables */
+    .toastui-editor-contents table:last-child::after,
+    .ProseMirror table:last-child::after {
+        content: '';
+        display: block;
+        min-height: 1.5em;
+    }
+    /* Make sure empty paragraphs after tables are visible */
+    .toastui-editor-contents table + p:empty::before,
+    .ProseMirror table + p:empty::before,
+    .toastui-editor-contents table + p br:only-child::after,
+    .ProseMirror table + p br:only-child::after {
+        content: '\200B';
+        font-size: 0;
+    }
+    /* Tab bar (Markdown/WYSIWYG switch) */
+    .toastui-editor-mode-switch {
+        border-top: 1px solid var(--border) !important;
+        background: var(--card-bg) !important;
+        padding: 4px 8px !important;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .toastui-editor-mode-switch button {
+        border-radius: 6px !important;
+        font-size: 12px !important;
+        padding: 4px 12px !important;
+    }
+    /* Scrollbar */
+    .toastui-editor-contents::-webkit-scrollbar { width: 6px; }
+    .toastui-editor-contents::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .toastui-editor-contents::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+    /* ─── Sidebar ─── */
+    .note-sidebar {
+        width: 260px; background: var(--card-bg);
+        border-left: 1px solid var(--border);
+        overflow-y: auto; flex-shrink: 0;
+    }
+    .sidebar-section { border-bottom: 1px solid var(--border); }
+    .sidebar-section-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 16px; font-size: 12px; font-weight: 600;
+        text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;
+        cursor: pointer; user-select: none; 
+    }
+    .sidebar-section-header:hover { background: var(--accent-light); }
+    .sidebar-section-header .collapse-icon { font-size: 10px; transition: transform 0.3s ease }
+    .sidebar-section-header.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .sidebar-section-body { padding: 0 16px 14px; }
+    .sidebar-section-body.collapsed { display: none; }
+    .sidebar-section h4 {
+        font-size: 12px; font-weight: 600; text-transform: uppercase;
+        color: var(--text-muted); letter-spacing: 0.5px; margin: 0;
+        display: flex; align-items: center; gap: 6px;
+    }
+    .sidebar-section h4 i { font-size: 14px; }
+
+    /* ─── Tags ─── */
+    .tag-chip {
+        display: inline-block; padding: 2px 10px; border-radius: 12px;
+        font-size: 12px; margin: 2px 4px 2px 0;
+        background: var(--accent-light); color: var(--accent);
+    }
+    .tag-chip .remove-tag { margin-left: 4px; cursor: pointer; opacity: 0.6; }
+    .tag-chip .remove-tag:hover { opacity: 1; }
+
+    /* ─── Backlinks & Blocks ─── */
+    .backlink-item {
+        display: block; padding: 6px 10px; border-radius: 6px;
+        color: var(--text-secondary); text-decoration: none; font-size: 13px; margin-bottom: 4px;
+    }
+    .backlink-item:hover { background: var(--accent-light); color: var(--accent); }
+    .block-item {
+        padding: 6px 10px; border-radius: 6px; font-size: 12px;
+        color: var(--text-secondary); margin-bottom: 4px;
+        border-left: 3px solid var(--border); cursor: pointer;
+    }
+    .block-item:hover { background: var(--accent-light); border-left-color: var(--accent); }
+    .block-type-badge {
+        display: inline-block; font-size: 10px; padding: 1px 6px;
+        border-radius: 4px; background: var(--bg); color: var(--text-muted); margin-right: 4px;
+    }
+
+    /* ─── Save status ─── */
+    .save-status { font-size: 12px; color: var(--text-muted); padding: 4px 10px; border-radius: 12px; }
+    .save-status.saving { color: #d97706; }
+    .save-status.saved { color: #059669; }
+    .save-status.error { color: #e11d48; }
+
+    /* ─── Toolbar buttons ─── */
+    .fmt-btn {
+        border: none; background: transparent; border-radius: 6px;
+        cursor: pointer; padding: 4px 8px; font-size: 13px;
+        color: var(--text-secondary); transition: transform 0.3s ease, box-shadow 0.3s ease
+    }
+    .fmt-btn:hover { background: var(--accent-light); color: var(--accent); }
+
+    /* ─── Dark mode overrides (same file, higher specificity) ─── */
+    :root[color-mode="dark"] .editor-toolbar { background: var(--card-bg) !important; border-bottom-color: var(--border) !important; }
+    :root[color-mode="dark"] .editor-toolbar .title-input { color: var(--text) !important; }
+    :root[color-mode="dark"] .editor-toolbar .save-status { color: var(--text-muted) !important; }
+    :root[color-mode="dark"] .editor-toolbar .fmt-btn { color: var(--text-secondary) !important; }
+    :root[color-mode="dark"] .editor-toolbar .fmt-btn:hover { color: var(--accent) !important; }
+    :root[color-mode="dark"] .editor-toolbar .dropdown-menu { background: var(--card-bg) !important; border-color: var(--border) !important; }
+    :root[color-mode="dark"] .editor-toolbar .dropdown-item { color: var(--text-secondary) !important; }
+    :root[color-mode="dark"] .editor-toolbar .dropdown-item:hover { background: var(--accent-light) !important; color: var(--accent) !important; }
+    :root[color-mode="dark"] .editor-toolbar .btn-primary { background: var(--accent) !important; border-color: var(--accent) !important; }
+    :root[color-mode="dark"] .note-sidebar { background: var(--card-bg) !important; border-color: var(--border) !important; }
+    :root[color-mode="dark"] .sidebar-section-header { color: var(--text-muted) !important; }
+    :root[color-mode="dark"] .sidebar-section-header:hover { background: var(--accent-light) !important; }
+    :root[color-mode="dark"] .backlink-item { color: var(--text-secondary) !important; }
+    :root[color-mode="dark"] .backlink-item:hover { background: var(--accent-light) !important; color: var(--accent) !important; }
+    :root[color-mode="dark"] .block-item { color: var(--text-secondary) !important; }
+    :root[color-mode="dark"] .block-item:hover { background: var(--accent-light) !important; }
+    :root[color-mode="dark"] .block-type-badge { background: var(--card-bg) !important; color: var(--text-muted) !important; }
+    :root[color-mode="dark"] .toastui-editor-contents blockquote { background: var(--accent-light) !important; color: var(--text-secondary) !important; }
+    :root[color-mode="dark"] .toastui-editor-contents th { background: var(--accent-light) !important; }
+    :root[color-mode="dark"] .toastui-editor-contents pre { background: #1e2235 !important; border-color: var(--border) !important; }
+    :root[color-mode="dark"] .toastui-editor-mode-switch { background: var(--card-bg) !important; border-color: var(--border) !important; }
+    :root[color-mode="dark"] .toastui-editor-contents::-webkit-scrollbar-thumb { background: var(--border) !important; }
+    :root[color-mode="dark"] .toastui-editor-toolbar-group { border-color: var(--border) !important; }
+    :root[color-mode="dark"] .toastui-editor-toolbar { background: rgba(20,24,40,0.75) !important; border-color: var(--glass-border) !important; }
+    :root[color-mode="dark"] .editor-toolbar { background: rgba(20,24,40,0.78) !important; border-color: var(--glass-border) !important; }
+    :root[color-mode="dark"] .editor-container { background: rgba(20,24,40,0.7) !important; }
+
+    /* ─── Wiki link popup ─── */
+    .wiki-link-popup {
+        position: absolute; background: var(--card-bg);
+        border: 1px solid var(--border); border-radius: 8px;
+        box-shadow: var(--shadow-lg); max-height: 200px;
+        overflow-y: auto; z-index: 1000; display: none; min-width: 200px;
+    }
+    .wiki-link-popup-item {
+        padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--text);
+    }
+    .wiki-link-popup-item:hover, .wiki-link-popup-item.active {
+        background: var(--accent-light); color: var(--accent);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+        .editor-container { flex-direction: column; }
+        .toastui-editor-defaultUI { height: auto !important; }
+        .note-sidebar { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toolbar -->
+<div class="editor-toolbar">
+    <a href="{{ url_for('notes.notes') }}" style="color:var(--text-muted);text-decoration:none;font-size:15px;padding:6px 8px;border-radius:8px;" title="返回" onmouseover="this.style.background='var(--accent-light)';this.style.color='var(--accent)'" onmouseout="this.style.background='transparent';this.style.color='var(--text-muted)'"><i class="bi bi-arrow-left"></i></a>
+    <input type="text" class="title-input" id="noteTitle" value="{{ note.title }}" placeholder="笔记标题...">
+    <div class="toolbar-meta">
+        <span id="saveStatus" class="save-status">就绪</span>
+        <button id="favBtn" class="fmt-btn" onclick="toggleFavorite()" title="收藏" style="font-size:14px;">
+            <i class="bi bi-star{% if note.favorited %}-fill{% endif %}" style="color:{% if note.favorited %}#d97706{% else %}var(--text-muted){% endif %}"></i>
+        </button>
+        <div class="dropdown">
+            <button class="fmt-btn" data-bs-toggle="dropdown" title="更多" style="font-size:14px;"><i class="bi bi-three-dots"></i></button>
+            <ul class="dropdown-menu dropdown-menu-end" style="font-size:13px;min-width:200px;padding:8px 0;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.12);" onclick="event.stopPropagation()">
+                <li style="padding:4px 16px;">
+                    <label style="font-size:11px;color:var(--text-muted);margin-bottom:4px;display:block;">课程</label>
+                    <select id="courseSelect" class="form-select form-select-sm" style="font-size:12px;width:100%;border-radius:8px;">
+                        <option value="">无课程</option>
+                        {% for c in courses %}<option value="{{ c.id }}" {% if note.course_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                    </select>
+                </li>
+                <li style="padding:4px 16px;">
+                    <label style="font-size:11px;color:var(--text-muted);margin-bottom:4px;display:block;">文件夹</label>
+                    <select id="folderSelect" class="form-select form-select-sm" style="font-size:12px;width:100%;border-radius:8px;">
+                        <option value="">未分类</option>
+                        {% for f in folders %}<option value="{{ f.id }}" {% if note.folder_id == f.id %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+                    </select>
+                </li>
+                <li><hr class="dropdown-divider" style="margin:6px 0;"></li>
+                <li><a class="dropdown-item" href="#" onclick="exportNote('md')" style="padding:6px 16px;"><i class="bi bi-file-earmark-text me-2"></i>导出 Markdown</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportNote('html')" style="padding:6px 16px;"><i class="bi bi-file-earmark-code me-2"></i>导出 HTML</a></li>
+            </ul>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveNote()" title="Ctrl+S" style="padding:5px 16px;font-size:13px;border-radius:8px;font-weight:500;">
+            <i class="bi bi-check-lg"></i> 保存
+        </button>
+    </div>
+</div>
+
+<!-- Main: Editor + Preview + Sidebar -->
+<div style="display:flex;flex:1;min-height:0;overflow:hidden;">
+    <div class="editor-container">
+        <!-- Hidden textarea for initial content -->
+        <textarea id="noteContent" style="display:none;">{{ md_content }}</textarea>
+        <!-- Toast UI Editor Container -->
+        <div id="toastEditor" style="flex:1;overflow:hidden;"></div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="note-sidebar">
+        <!-- Tags -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-tags"></i> 标签</h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body">
+                <div id="tagList" style="margin-bottom:6px;">
+                    {% for tag in tags %}
+                    <span class="tag-chip" data-name="{{ tag.tag_name }}" data-value="{{ tag.tag_value }}">
+                        {{ tag.tag_name }}{% if tag.tag_value %}:{{ tag.tag_value }}{% endif %}
+                        <span class="remove-tag" onclick="removeTag(this)">&times;</span>
+                    </span>
+                    {% endfor %}
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <input type="text" id="tagName" class="form-control form-control-sm" placeholder="标签名" style="font-size:12px;">
+                    <input type="text" id="tagValue" class="form-control form-control-sm" placeholder="值" style="font-size:12px;width:70px;">
+                    <button class="btn btn-outline btn-sm" onclick="addTag()" style="padding:2px 8px;font-size:12px;">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Blocks -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-grid-3x3"></i> 内容块 <span style="font-size:10px;font-weight:400;opacity:0.7;">({{ blocks|length }})</span></h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body">
+                <div id="blockList">
+                    {% for block in blocks %}
+                    <div class="block-item" onclick="scrollToBlock('{{ block.sort_order }}')" title="{{ block.content[:80] }}" style="position:relative;">
+                        <span class="block-type-badge">{{ block.block_type }}</span>
+                        {{ block.content[:50] }}{% if block.content|length > 50 %}...{% endif %}
+                        {% if block.block_type not in ('code','math') and block.content|length > 5 %}
+                        <span class="block-flashcard-btn" onclick="event.stopPropagation();createFlashcardPrompt('{{ block.id }}')" title="创建闪卡" style="position:absolute;right:6px;top:6px;font-size:12px;color:#d97706;cursor:pointer;opacity:0;transition: opacity 0.3s ease">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Backlinks -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-link-45deg"></i> 反向链接 <span style="font-size:10px;font-weight:400;opacity:0.7;">({{ backlinks|length }})</span></h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body">
+                {% if backlinks %}
+                    {% for bl in backlinks %}
+                    <a href="{{ url_for('notes.note_detail', id=bl.id) }}" class="backlink-item">
+                        <i class="bi bi-arrow-return-right"></i> {{ bl.title }}
+                        {% if bl.link_text != bl.title %}<br><small style="color:var(--text-muted);">{{ bl.link_text }}</small>{% endif %}
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div style="font-size:12px;color:var(--text-muted);">暂无笔记引用此笔记</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Flashcards (collapsed by default) -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header collapsed" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-lightning-charge"></i> 闪卡</h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body collapsed">
+                <div style="font-size:12px;color:var(--text-muted);" id="flashcardInfo">
+                    点击块上的 ⚡ 创建闪卡
+                </div>
+            </div>
+        </div>
+        
+        <!-- Info -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-info-circle"></i> 信息</h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body">
+                <div style="font-size:12px;color:var(--text-muted);line-height:2;">
+                    <div>创建：{{ note.created_at[:16] if note.created_at else '-' }}</div>
+                    <div>更新：{{ note.updated_at[:16] if note.updated_at else '-' }}</div>
+                    <div>字数：<span id="charCount">0</span></div>
+                    <div>词数：<span id="wordCount">0</span></div>
+                    <div>阅读：<span id="readTime">-</span></div>
+                    <div>行数：<span id="lineCount">0</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Shortcuts (collapsed by default) -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-header collapsed" onclick="toggleSidebarSection(this)">
+                <h4><i class="bi bi-keyboard"></i> 快捷键</h4>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </div>
+            <div class="sidebar-section-body collapsed">
+                <div style="font-size:11px;color:var(--text-muted);line-height:2.2;">
+                    <div><kbd>Ctrl</kbd>+<kbd>S</kbd> 保存</div>
+                    <div><kbd>Ctrl</kbd>+<kbd>B</kbd> 粗体</div>
+                    <div><kbd>Ctrl</kbd>+<kbd>I</kbd> 斜体</div>
+                    <div><kbd>Tab</kbd> 缩进</div>
+                    <div><kbd>[[</kbd> Wiki 链接</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Delete -->
+        <div style="padding:14px 16px;">
+            <form method="POST" action="{{ url_for('notes.delete_note', id=note.id) }}" onsubmit="return confirm('确定删除此笔记？此操作不可撤销。')">
+                <button type="submit" class="btn btn-outline btn-sm" style="width:100%;color:#e11d48;border-color:#fecaca;font-size:12px;">
+                    <i class="bi bi-trash"></i> 删除笔记
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Wiki Link Autocomplete Popup -->
+<div class="wiki-link-popup" id="wikiLinkPopup"></div>
+
+<script>
+// ─── Toast UI Editor Init ───
+const initialContent = document.getElementById('noteContent');
+const editor = new toastui.Editor({
+    el: document.getElementById('toastEditor'),
+    initialValue: initialContent ? initialContent.value : '',
+    initialEditType: 'wysiwyg',
+    previewStyle: 'vertical',
+    height: '100%',
+    toolbarItems: [
+        ['heading', 'bold', 'italic', 'strike'],
+        ['hr', 'quote'],
+        ['ul', 'ol', 'task', 'indent', 'outdent'],
+        ['table', 'link', 'image'],
+        ['code', 'codeblock'],
+        ['scrollSync']
+    ],
+    language: 'zh-CN',
+    usageStatistics: false,
+});
+
+// ─── Fix inline code (code button) ───
+// Toast UI Editor v3 WYSIWYG code button may not work on empty selection.
+// Hook into the toolbar code button click to apply inline code properly.
+document.querySelector('.toastui-editor-toolbar').addEventListener('mousedown', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const ariaLabel = btn.getAttribute('aria-label') || btn.getAttribute('title') || '';
+    if (ariaLabel.toLowerCase().includes('code') && !ariaLabel.toLowerCase().includes('block')) {
+        // Check if there's a text selection
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && sel.toString().trim() === '') {
+            // No selection: insert code markers and place cursor inside
+            e.preventDefault();
+            e.stopPropagation();
+            const range = sel.getRangeAt(0);
+            const codeEl = document.createElement('code');
+            codeEl.textContent = '\u200B'; // zero-width space as anchor
+            range.insertNode(codeEl);
+            // Place cursor inside the code element
+            const newRange = document.createRange();
+            newRange.setStart(codeEl, 0);
+            newRange.setEnd(codeEl, 1);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+        }
+    }
+}, true);
+
+// ─── Table cursor trap fix ───
+// Ensure there's always a paragraph after every table so user can click below.
+function fixTableCursorTrap() {
+    // Try multiple selectors for Toast UI Editor v3 WYSIWYG content area
+    const selectors = [
+        '.ProseMirror',
+        '.toastui-editor-ww-mode .ProseMirror',
+        '.toastui-editor-contents .ProseMirror',
+        '.toastui-editor-contents',
+        '.tui-editor-contents',
+        '[contenteditable="true"]'
+    ];
+    let editorBody = null;
+    for (const sel of selectors) {
+        editorBody = document.querySelector(sel);
+        if (editorBody) break;
+    }
+    if (!editorBody) return;
+
+    // Find all tables and ensure each has a paragraph after it
+    const tables = editorBody.querySelectorAll('table');
+    tables.forEach(table => {
+        const next = table.nextElementSibling;
+        if (!next || next.tagName === 'TABLE' || (next.tagName === 'P' && !next.textContent && !next.querySelector('br'))) {
+            const p = document.createElement('p');
+            p.innerHTML = '<br>';
+            if (next && next.tagName === 'TABLE') {
+                table.parentNode.insertBefore(p, table.nextSibling);
+            } else if (!next) {
+                table.parentNode.appendChild(p);
+            }
+        }
+    });
+
+    // Also: if the very last child is a table, append a paragraph
+    const lastChild = editorBody.lastElementChild;
+    if (lastChild && lastChild.tagName === 'TABLE') {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        editorBody.appendChild(p);
+    }
+}
+
+// Run on change, with debounce to avoid fighting with editor
+let tableFixTimer = null;
+function debouncedTableFix() {
+    clearTimeout(tableFixTimer);
+    tableFixTimer = setTimeout(fixTableCursorTrap, 100);
+}
+editor.on('change', debouncedTableFix);
+// Fix on load
+setTimeout(fixTableCursorTrap, 800);
+// MutationObserver: catch table insertions in real-time
+const observer = new MutationObserver(function(mutations) {
+    for (const m of mutations) {
+        for (const node of m.addedNodes) {
+            if (node.nodeType === 1 && (node.tagName === 'TABLE' || node.querySelector?.('table'))) {
+                setTimeout(fixTableCursorTrap, 50);
+                return;
+            }
+        }
+    }
+});
+// Observe the editor content area
+setTimeout(function() {
+    const pm = document.querySelector('.ProseMirror') || document.querySelector('[contenteditable="true"]') || document.querySelector('.toastui-editor-contents');
+    if (pm) observer.observe(pm, { childList: true, subtree: true });
+}, 500);
+// Fix after table button click (toolbar)
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.toastui-editor-toolbar button');
+    if (btn) {
+        const label = (btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
+        if (label.includes('table')) {
+            setTimeout(fixTableCursorTrap, 300);
+        }
+    }
+});
+// Keyboard: Escape table when at end — Ctrl+Enter after table creates new paragraph below
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        // Find the editor content area
+        const pm = document.querySelector('.ProseMirror') || document.querySelector('[contenteditable="true"]');
+        if (!pm) return;
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const node = sel.anchorNode;
+        // Check if cursor is inside a table
+        let td = null;
+        let n = node;
+        while (n && n !== pm) {
+            if (n.tagName === 'TD' || n.tagName === 'TH') { td = n; break; }
+            n = n.parentElement;
+        }
+        if (!td) return;
+        // Check if we're in the last row of the last table
+        const table = td.closest('table');
+        if (!table) return;
+        const rows = table.querySelectorAll('tr');
+        const lastRow = rows[rows.length - 1];
+        const isInLastRow = lastRow.contains(td);
+        if (!isInLastRow) return;
+        // Check if the table is the last element
+        const next = table.nextElementSibling;
+        if (next && next.tagName !== 'TABLE') return; // already has content after
+        e.preventDefault();
+        e.stopPropagation();
+        // Insert paragraph after table
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        table.parentNode.insertBefore(p, table.nextSibling);
+        // Focus the new paragraph
+        const range = document.createRange();
+        range.setStart(p, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}, true);
+
+// ─── Title & Save ───
+const titleInput = document.getElementById('noteTitle');
+let isDirty = false;
+
+// Track changes
+editor.on('change', () => { isDirty = true; });
+
+// ─── Save Note ───
+function saveNote() {
+    const status = document.getElementById('saveStatus');
+    status.textContent = '保存中...';
+    status.className = 'save-status saving';
+    fetch('/notes/{{ note.id }}/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            title: titleInput.value,
+            markdown: editor.getMarkdown(),
+            course_id: document.getElementById('courseSelect').value || null,
+            folder_id: document.getElementById('folderSelect').value || null
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            status.textContent = '✓ 已保存 (' + data.blocks_count + ' 块)';
+            status.className = 'save-status saved';
+            isDirty = false;
+        } else {
+            status.textContent = '✗ ' + (data.error || '保存失败');
+            status.className = 'save-status error';
+        }
+        setTimeout(() => { status.textContent = '就绪'; status.className = 'save-status'; }, 3000);
+    })
+    .catch(() => { status.textContent = '✗ 网络错误'; status.className = 'save-status error'; });
+}
+
+setInterval(() => { if (isDirty) saveNote(); }, 60000);
+window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); saveNote(); } });
+
+// ─── Wiki Link ───
+function openWikiLink(title) {
+    fetch(`/api/notes/search?q=${encodeURIComponent(title)}`)
+        .then(r => r.json())
+        .then(items => {
+            if (items.length > 0 && items[0].title === title) {
+                window.location.href = '/notes/' + items[0].id;
+            } else if (confirm(`笔记「${title}」不存在，要创建吗？`)) {
+                const form = document.createElement('form');
+                form.method = 'POST'; form.action = '/notes/add';
+                const t = document.createElement('input');
+                t.name = 'title'; t.value = title; form.appendChild(t);
+                const c = document.createElement('input');
+                c.name = 'content'; c.value = ''; form.appendChild(c);
+                document.body.appendChild(form); form.submit();
+            }
+        });
+}
+
+// ─── Tags ───
+function addTag() {
+    const name = document.getElementById('tagName').value.trim();
+    const value = document.getElementById('tagValue').value.trim();
+    if (!name) return;
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip'; chip.dataset.name = name; chip.dataset.value = value;
+    chip.innerHTML = `${name}${value ? ':'+value : ''}<span class="remove-tag" onclick="removeTag(this)">&times;</span>`;
+    document.getElementById('tagList').appendChild(chip);
+    document.getElementById('tagName').value = '';
+    document.getElementById('tagValue').value = '';
+    saveTags();
+}
+function removeTag(el) { el.parentElement.remove(); saveTags(); }
+function saveTags() {
+    const tags = Array.from(document.querySelectorAll('.tag-chip')).map(c => ({name:c.dataset.name, value:c.dataset.value}));
+    fetch('/notes/{{ note.id }}/tags', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tags})});
+}
+
+// ─── Sidebar Toggle ───
+function toggleSidebarSection(header) {
+    header.classList.toggle('collapsed');
+    header.nextElementSibling.classList.toggle('collapsed');
+}
+
+// ─── Favorite ───
+function toggleFavorite() {
+    fetch('/notes/{{ note.id }}/favorite', {method:'POST'}).then(r=>r.json()).then(data => {
+        const icon = document.querySelector('#favBtn i');
+        icon.className = data.favorited ? 'bi bi-star-fill' : 'bi bi-star';
+        icon.style.color = data.favorited ? '#d97706' : 'var(--text-muted)';
+    });
+}
+
+// ─── Export ───
+function exportNote(fmt) {
+    const title = titleInput.value || '笔记';
+    const md = editor.getMarkdown();
+    const htmlContent = editor.getHTML();
+    let blob, filename;
+    if (fmt === 'md') { blob = new Blob([md], {type:'text/markdown;charset=utf-8'}); filename = title+'.md'; }
+    else if (fmt === 'html') {
+        const full = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<title>${title}</title>\n<style>body{font-family:-apple-system,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.8;color:#1a202c;}pre{background:#f8fafc;padding:14px;border-radius:8px;overflow-x:auto;}code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.9em;}pre code{background:none;padding:0;}blockquote{border-left:4px solid #4A90D9;padding:8px 16px;background:#ebf2fa;margin:0.8em 0;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #e2e8f0;padding:8px 12px;}th{background:#f8fafc;}</style>\n</head>\n<body>\n<h1>${title}</h1>\n${htmlContent}\n</body>\n</html>`;
+        blob = new Blob([full], {type:'text/html;charset=utf-8'}); filename = title+'.html';
+    } else {
+        const tmp = document.createElement('div'); tmp.innerHTML = htmlContent;
+        blob = new Blob([tmp.textContent||tmp.innerText], {type:'text/plain;charset=utf-8'}); filename = title+'.txt';
+    }
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Scroll to Block ───
+function scrollToBlock(sortOrder) { /* placeholder */ }
+function createFlashcardPrompt(blockId) {
+    const front = prompt('闪卡正面（问题）：'); if (!front) return;
+    const back = prompt('闪卡背面（答案）：'); if (!back) return;
+    fetch('/api/blocks/' + blockId + '/flashcard', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({front,back})})
+    .then(r=>r.json()).then(data => { alert(data.ok ? '闪卡已创建！' : '创建失败：' + (data.error||'未知错误')); });
+}
+</script>
+{% endblock %}

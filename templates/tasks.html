@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}任务 - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <h1>任务</h1>
+        <p>管理你的学习任务</p>
+    </div>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addTask">
+        <i class="bi bi-plus-lg"></i> 新任务
+    </button>
+</div>
+
+<!-- Filters & Views -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:4px;">
+        <a href="{{ url_for('tasks.tasks', view=view, status='all', course_id=filter_course) }}"
+           class="btn-outline {% if filter_status == 'all' %}active{% endif %}">全部</a>
+        <a href="{{ url_for('tasks.tasks', view=view, status='todo', course_id=filter_course) }}"
+           class="btn-outline {% if filter_status == 'todo' %}active{% endif %}">待办</a>
+        <a href="{{ url_for('tasks.tasks', view=view, status='done', course_id=filter_course) }}"
+           class="btn-outline {% if filter_status == 'done' %}active{% endif %}">已完成</a>
+    </div>
+    <!-- Tag filters -->
+    {% if all_tags %}
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        {% for tag in all_tags %}
+        <a href="{{ url_for('tasks.tasks', view=view, status=filter_status, course_id=filter_course) }}#tag-{{ tag }}"
+           class="btn-outline tag-filter" data-tag="{{ tag }}"
+           style="padding:3px 10px;font-size:12px;border-radius:12px;"
+           >#{{ tag }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <div style="flex:1;"></div>
+    <div style="display:flex;gap:4px;">
+        <a href="{{ url_for('tasks.tasks', view='list', status=filter_status, course_id=filter_course) }}"
+           class="btn-outline {% if view == 'list' %}active{% endif %}"><i class="bi bi-list"></i></a>
+        <a href="{{ url_for('tasks.tasks', view='kanban', status=filter_status, course_id=filter_course) }}"
+           class="btn-outline {% if view == 'kanban' %}active{% endif %}"><i class="bi bi-kanban"></i></a>
+        <a href="{{ url_for('tasks.tasks', view='calendar', status=filter_status, course_id=filter_course) }}"
+           class="btn-outline {% if view == 'calendar' %}active{% endif %}"><i class="bi bi-calendar3"></i></a>
+    </div>
+</div>
+
+{% if view == 'list' %}
+<!-- List View -->
+<div class="card">
+    {% if tasks %}
+    <div id="taskList">
+    {% for task in tasks %}
+    <div class="task-item" data-id="{{ task.id }}" data-tags="{{ task.tags or '' }}" draggable="true">
+        <div class="priority-dot priority-{{ task.priority }}"></div>
+        <div class="drag-handle" style="cursor:grab;color:#cbd5e0;font-size:14px;padding:0 4px;" title="拖拽排序">
+            <i class="bi bi-grip-vertical"></i>
+        </div>
+        <form method="POST" action="{{ url_for('tasks.toggle_task', id=task.id) }}" style="margin:0;">
+            <div class="task-check {% if task.status == 'done' %}done{% endif %}" onclick="this.closest('form').submit()">
+                {% if task.status == 'done' %}<i class="bi bi-check" style="font-size:12px;"></i>{% endif %}
+            </div>
+        </form>
+        <div style="flex:1;">
+            <div class="task-title {% if task.status == 'done' %}done{% endif %}">{{ task.title }}</div>
+            {% if task.description %}
+            <div style="font-size:12px;color:#a0aec0;margin-top:2px;">{{ task.description[:60] }}</div>
+            {% endif %}
+            {% if task.tags %}
+            <div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">
+                {% for tag in (task.tags or '').split(',') %}
+                {% if tag.strip() %}
+                <span style="font-size:11px;color:#6c5ce7;background:#f0edff;padding:1px 8px;border-radius:10px;">#{{ tag.strip() }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% if task.course_name %}
+        <span class="course-tag" style="background:{{ task.course_color }};">{{ task.course_name }}</span>
+        {% endif %}
+        {% if task.due_date %}
+        <span style="font-size:12px;color:#a0aec0;"><i class="bi bi-calendar3"></i> {{ (task.due_date|string)[:10] }}</span>
+        {% endif %}
+        <button type="button" class="undo-delete-btn" data-id="{{ task.id }}"
+                style="border:none;background:none;color:#ccc;cursor:pointer;font-size:14px;"
+                title="删除">
+            <i class="bi bi-x"></i>
+        </button>
+    </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:48px;color:#a0aec0;font-size:14px;">
+        <i class="bi bi-inbox" style="font-size:40px;display:block;margin-bottom:12px;"></i>
+        还没有任务<br>
+        <span style="font-size:12px;">点击右上角「新任务」或在首页快速添加</span>
+    </div>
+    {% endif %}
+</div>
+
+{% elif view == 'kanban' %}
+<!-- Kanban View -->
+<div class="kanban-board">
+    <div class="kanban-column">
+        <h3><span style="width:8px;height:8px;border-radius:50%;background:#d69e2e;"></span> 待办</h3>
+        {% for task in tasks if task.status == 'todo' %}
+        <div class="kanban-task">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <div class="priority-dot priority-{{ task.priority }}"></div>
+                <span>{{ task.title }}</span>
+            </div>
+            {% if task.course_name %}
+            <div style="margin-top:6px;">
+                <span class="course-tag" style="background:{{ task.course_color }};font-size:10px;">{{ task.course_name }}</span>
+            </div>
+            {% endif %}
+            {% if task.tags %}
+            <div style="margin-top:4px;display:flex;gap:3px;flex-wrap:wrap;">
+                {% for tag in (task.tags or '').split(',') %}
+                {% if tag.strip() %}
+                <span style="font-size:10px;color:#6c5ce7;background:#f0edff;padding:0 6px;border-radius:8px;">#{{ tag.strip() }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="kanban-column">
+        <h3><span style="width:8px;height:8px;border-radius:50%;background:#4A90D9;"></span> 进行中</h3>
+        {% for task in tasks if task.status == 'doing' %}
+        <div class="kanban-task">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <div class="priority-dot priority-{{ task.priority }}"></div>
+                <span>{{ task.title }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="kanban-column">
+        <h3><span style="width:8px;height:8px;border-radius:50%;background:#38a169;"></span> 已完成</h3>
+        {% for task in tasks if task.status == 'done' %}
+        <div class="kanban-task" style="opacity:0.6;">
+            <div style="text-decoration:line-through;">{{ task.title }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% elif view == 'calendar' %}
+<!-- Calendar View -->
+<div class="card">
+    <!-- Month navigation -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <a href="{{ url_for('tasks.tasks', view='calendar', status=filter_status, course_id=filter_course, y=prev_y, m=prev_m) }}"
+           style="color:var(--text-muted);text-decoration:none;font-size:18px;padding:4px 8px;" title="上个月"><i class="bi bi-chevron-left"></i></a>
+        <span style="font-size:16px;font-weight:700;">{{ cal_year }}年{{ cal_month }}月</span>
+        <a href="{{ url_for('tasks.tasks', view='calendar', status=filter_status, course_id=filter_course, y=next_y, m=next_m) }}"
+           style="color:var(--text-muted);text-decoration:none;font-size:18px;padding:4px 8px;" title="下个月"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    <div class="cal-grid">
+        {% for h in ['一','二','三','四','五','六','日'] %}
+        <div class="cal-header">{{ h }}</div>
+        {% endfor %}
+        {% for week in cal_weeks %}
+        {% for cell in week %}
+        {% if cell is none %}
+        <div class="cal-day other"></div>
+        {% else %}
+        <div class="cal-day {% if cell.is_today %}today{% endif %}">
+            <div style="font-size:13px;font-weight:{% if cell.is_today %}700{% else %}400{% endif %};">{{ cell.day }}</div>
+            <div style="margin-top:2px;display:flex;gap:2px;flex-wrap:wrap;">
+                {% for t in cell.tasks[:3] %}
+                <div style="width:100%;font-size:10px;color:{{ t.course_color or '#4A90D9' }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;" title="{{ t.title }}">
+                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:{{ t.course_color or '#4A90D9' }};vertical-align:middle;margin-right:2px;"></span>{{ t.title }}
+                </div>
+                {% endfor %}
+                {% if cell.tasks|length > 3 %}
+                <div style="font-size:10px;color:#a0aec0;">+{{ cell.tasks|length - 3 }} 更多</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTask" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('tasks.add_task') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size:16px;">新任务</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">任务名称</label>
+                        <input name="title" class="form-control" placeholder="如：完成第三章习题" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">备注</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="可选"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">优先级</label>
+                            <select name="priority" class="form-select">
+                                <option value="1">🔴 紧急</option>
+                                <option value="2" selected>🟡 一般</option>
+                                <option value="3">🔵 不急</option>
+                                <option value="4">⚪ 低优</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">截止日期</label>
+                            <input name="due_date" type="date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">关联课程</label>
+                        {% if courses %}
+                        <select name="course_id" class="form-select">
+                            <option value="">— 无 —</option>
+                            {% for c in courses %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <div style="padding:12px;background:#fffbeb;border-radius:var(--radius-sm);font-size:13px;">
+                            <i class="bi bi-exclamation-circle" style="color:#d69e2e;"></i>
+                            还没有课程，
+                            <a href="{{ url_for('courses.courses') }}" style="color:var(--accent);text-decoration:none;font-weight:600;">先去添加课程 →</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">标签</label>
+                        <input name="tags" class="form-control" placeholder="逗号分隔，如：复习,考试周">
+                        <div style="font-size:11px;color:#a0aec0;margin-top:4px;">用逗号分隔多个标签</div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:#e8ecf1;">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Undo Toast -->
+<div id="undoToast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:#1a202c;color:white;padding:12px 20px;border-radius:var(--radius);display:flex;align-items:center;gap:12px;z-index:999;box-shadow:var(--shadow-lg);transition:transform 0.3s ease;font-size:14px;">
+    <span id="undoMsg">任务已删除</span>
+    <button id="undoBtn" style="background:var(--accent);color:white;border:none;padding:4px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">撤销</button>
+    <span id="undoTimer" style="font-size:12px;color:#a0aec0;"></span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Drag & Drop ──
+const taskList = document.getElementById('taskList');
+if (taskList) {
+    let dragItem = null;
+    taskList.addEventListener('dragstart', e => {
+        dragItem = e.target.closest('.task-item');
+        if (dragItem) {
+            dragItem.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    });
+    taskList.addEventListener('dragend', e => {
+        if (dragItem) {
+            dragItem.style.opacity = '1';
+            dragItem = null;
+            // Save new order
+            const ids = [...taskList.querySelectorAll('.task-item')].map(el => el.dataset.id);
+            fetch('/api/tasks/reorder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({order: ids.map(Number)})
+            });
+        }
+    });
+    taskList.addEventListener('dragover', e => {
+        e.preventDefault();
+        const afterEl = getDragAfterElement(taskList, e.clientY);
+        if (afterEl) {
+            taskList.insertBefore(dragItem, afterEl);
+        } else {
+            taskList.appendChild(dragItem);
+        }
+    });
+    function getDragAfterElement(container, y) {
+        const items = [...container.querySelectorAll('.task-item:not([style*="opacity: 0.4"])')];
+        return items.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return {offset, element: child};
+            }
+            return closest;
+        }, {offset: -Infinity}).element;
+    }
+}
+
+// ── Undo Delete ──
+let undoTimeout = null;
+let deletedTask = null;
+document.querySelectorAll('.undo-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const res = await fetch(`/api/tasks/${id}/soft-delete`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) {
+            deletedTask = data.task;
+            const item = btn.closest('.task-item');
+            item.style.transition = 'all 0.3s';
+            item.style.opacity = '0';
+            item.style.transform = 'translateX(20px)';
+            setTimeout(() => item.remove(), 300);
+            showUndoToast();
+        }
+    });
+});
+
+function showUndoToast() {
+    const toast = document.getElementById('undoToast');
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    let seconds = 5;
+    document.getElementById('undoTimer').textContent = `(${seconds}s)`;
+    clearInterval(undoTimeout);
+    undoTimeout = setInterval(() => {
+        seconds--;
+        document.getElementById('undoTimer').textContent = `(${seconds}s)`;
+        if (seconds <= 0) {
+            clearInterval(undoTimeout);
+            toast.style.transform = 'translateX(-50%) translateY(100px)';
+            deletedTask = null;
+        }
+    }, 1000);
+}
+
+document.getElementById('undoBtn').addEventListener('click', async () => {
+    if (!deletedTask) return;
+    clearInterval(undoTimeout);
+    document.getElementById('undoToast').style.transform = 'translateX(-50%) translateY(100px)';
+    await fetch('/api/tasks/restore', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({task: deletedTask})
+    });
+    deletedTask = null;
+    location.reload();
+});
+
+// ── Tag Filter ──
+document.querySelectorAll('.tag-filter').forEach(el => {
+    el.addEventListener('click', e => {
+        e.preventDefault();
+        const tag = el.dataset.tag;
+        const active = el.classList.toggle('active');
+        document.querySelectorAll('.task-item').forEach(item => {
+            const tags = item.dataset.tags || '';
+            if (!active || tags.includes(tag)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

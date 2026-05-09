@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block title %}个人中心 - AstroStudy{% endblock %}
+
+{% block content %}
+<!-- ═══ Profile Header ═══ -->
+<div class="profile-header">
+    <div class="profile-avatar avatar-grad" style="background:linear-gradient(135deg,{{ avatar_color1 }}, {{ avatar_color2 }});">
+        {{ username[0:1] | upper }}
+    </div>
+    <div class="profile-header-body">
+        <div class="profile-name">{{ username }}</div>
+        <div class="profile-level-row">
+            <span class="profile-level-badge">Lv.{{ level_num }} {{ level_emoji }} {{ level_name }}</span>
+            <span class="profile-streak">🔥 连续 {{ streak }} 天</span>
+        </div>
+        <div class="profile-meta">
+            <i class="bi bi-calendar3"></i> {{ created_at[:10] if created_at else '未知' }}
+            &nbsp;·&nbsp;
+            <i class="bi bi-clock"></i> {{ total_hours }}h
+        </div>
+        {% if level_next < 99999 %}
+        <div class="profile-xp-bar-wrap">
+            <div class="profile-xp-bar">
+                <div class="profile-xp-fill" style="width:{{ level_pct }}%;"></div>
+            </div>
+            <span class="profile-xp-label">距 Lv.{{ level_num + 1 }} 还差 {{ '%.1f'|format(level_next - total_hours) }}h</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.profile-avatar.avatar-grad {
+    transition: background 0.5s ease;
+}
+.profile-header-body { flex: 1; min-width: 0; }
+.profile-level-row {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.profile-level-badge {
+    font-size: 15px; font-weight: 700;
+    background: rgba(255,255,255,0.18);
+    padding: 4px 14px; border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+.profile-streak {
+    font-size: 14px; font-weight: 600;
+    background: rgba(255,255,255,0.12);
+    padding: 4px 12px; border-radius: 20px;
+}
+.profile-xp-bar-wrap {
+    margin-top: 8px; display: flex; align-items: center; gap: 12px;
+}
+.profile-xp-bar {
+    width: 160px; height: 6px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 3px; overflow: hidden;
+}
+.profile-xp-fill {
+    height: 100%; border-radius: 3px;
+    background: rgba(255,255,255,0.7);
+    transition: width 0.6s ease;
+}
+.profile-xp-label {
+    font-size: 12px; opacity: 0.65; white-space: nowrap;
+}
+</style>
+
+<!-- ═══ Content Row ═══ -->
+<div class="row g-3">
+    <!-- Left: Stats + Prefs + Danger (col-md-4) -->
+    <div class="col-md-4">
+        <!-- Stats Overview -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-graph-up"></i> 数据概览</div>
+            <div class="row g-2">
+                {% set stat_links = [
+                    ('total_courses', '课程', 'bi-book', url_for('courses.courses')),
+                    ('total_tasks', '任务', 'bi-check2-square', url_for('tasks.tasks')),
+                    ('done_tasks', '已完成', 'bi-check-circle', url_for('tasks.tasks', status='done')),
+                    ('total_pomodoros', '番茄', 'bi-stopwatch', url_for('pomodoro.pomodoro')),
+                    ('total_exams', '考试', 'bi-calendar-event', url_for('exams.exams')),
+                    ('streak', '连续天数', 'bi-fire', '#'),
+                ] %}
+                {% set stat_colors = {
+                    'total_courses': 'var(--accent)',
+                    'total_tasks': 'var(--accent)',
+                    'done_tasks': '#38a169',
+                    'total_pomodoros': '#d69e2e',
+                    'total_exams': 'var(--accent)',
+                    'streak': '#38a169',
+                } %}
+                {% set stat_vals = {
+                    'total_courses': total_courses,
+                    'total_tasks': total_tasks,
+                    'done_tasks': done_tasks,
+                    'total_pomodoros': total_pomodoros,
+                    'total_exams': total_exams,
+                    'streak': streak,
+                } %}
+                {% for sid, slabel, sicon, surl in stat_links %}
+                <div class="col-6">
+                    <a href="{{ surl }}" class="stat-card-link" style="text-decoration:none;">
+                        <div class="stat-card clickable" style="padding:14px;">
+                            <div class="stat-value" style="font-size:24px;color:{{ stat_colors[sid] }};">
+                                {{ stat_vals[sid] }}
+                            </div>
+                            <div class="stat-label"><i class="bi {{ sicon }}" style="font-size:11px;"></i> {{ slabel }}</div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Preferences -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-sliders"></i> 偏好设置</div>
+            <div class="mb-2">
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;">默认番茄钟时长</label>
+                <select id="prefPomoDur" class="form-select form-select-sm" style="font-size:13px;">
+                    <option value="15">15 分钟</option>
+                    <option value="25" selected>25 分钟</option>
+                    <option value="35">35 分钟</option>
+                    <option value="45">45 分钟</option>
+                    <option value="60">60 分钟</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;">每周起始日</label>
+                <select id="prefWeekStart" class="form-select form-select-sm" style="font-size:13px;">
+                    <option value="1" selected>周一</option>
+                    <option value="0">周日</option>
+                </select>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">自动保存到本地</div>
+        </div>
+
+        <!-- Export -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-download"></i> 数据导出</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                <a href="{{ url_for('export.export_data', format='study') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;text-decoration:none;font-size:13px;">
+                    <i class="bi bi-clock-history" style="color:var(--accent);"></i> 学习记录 CSV
+                </a>
+                <a href="{{ url_for('export.export_data', format='tasks') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;text-decoration:none;font-size:13px;">
+                    <i class="bi bi-check2-square" style="color:#38a169;"></i> 任务列表 CSV
+                </a>
+                <a href="{{ url_for('export.export_data', format='pomodoro') }}" class="btn-outline" style="display:flex;align-items:center;gap:8px;text-decoration:none;font-size:13px;">
+                    <i class="bi bi-stopwatch" style="color:#d69e2e;"></i> 番茄记录 CSV
+                </a>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card danger-zone">
+            <div class="card-title" style="color:#e53e3e;"><i class="bi bi-exclamation-triangle"></i> 危险操作</div>
+            <form method="POST" action="{{ url_for('profile.reset_data') }}" onsubmit="return confirm('⚠️ 这将清除所有课程、任务、考试等数据（保留账号），确定继续？')">
+                <button type="submit" class="btn btn-danger btn-sm" style="font-size:13px;">
+                    <i class="bi bi-trash3"></i> 清除所有数据
+                </button>
+            </form>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">账号保留，仅清除课程、任务、考试、番茄钟等记录</div>
+        </div>
+    </div>
+
+    <!-- Right: Achievements + Password + About (col-md-8) -->
+    <div class="col-md-8">
+        <!-- Achievement Wall -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-trophy-fill"></i> 成就徽章
+                <span style="font-weight:400;font-size:11px;color:var(--text-muted);margin-left:8px;" id="achvSummary"></span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+                <span class="achv-filter active" data-cat="all">全部</span>
+                <span class="achv-filter" data-cat="milestone">🏁 里程碑</span>
+                <span class="achv-filter" data-cat="volume">📊 总量</span>
+                <span class="achv-filter" data-cat="streak">🔥 连续</span>
+                <span class="achv-filter" data-cat="explore">🧭 探索</span>
+            </div>
+            <div id="achvWall" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;"></div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-key"></i> 修改密码</div>
+            <form method="POST" action="{{ url_for('profile.change_password') }}" onsubmit="return validatePwd()">
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:12px;margin-bottom:2px;">当前密码</label>
+                    <div class="pwd-wrap">
+                        <input name="old_password" type="password" class="form-control" required>
+                        <button type="button" class="pwd-toggle" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:12px;margin-bottom:2px;">新密码</label>
+                    <div class="pwd-wrap">
+                        <input name="new_password" type="password" class="form-control" id="pwdNew" required minlength="3" oninput="checkPwdStrength()">
+                        <button type="button" class="pwd-toggle" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="pwd-strength" id="pwdStrengthBar" style="display:none;">
+                        <div class="pwd-strength-fill" id="pwdStrengthFill"></div>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="pwdStrengthLabel"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:12px;margin-bottom:2px;">确认新密码</label>
+                    <div class="pwd-wrap">
+                        <input name="confirm_password" type="password" class="form-control" id="pwdConfirm" required minlength="3">
+                        <button type="button" class="pwd-toggle" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div style="font-size:11px;color:#e53e3e;margin-top:2px;display:none;" id="pwdMismatch">⚠️ 两次密码不一致</div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-check-lg"></i> 保存修改
+                </button>
+            </form>
+        </div>
+
+        <!-- About -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-info-circle"></i> 关于</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-weight:500;">应用名称</span>
+                    <span>AstroStudy 学习备考助手</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-weight:500;">版本</span>
+                    <span>v2.0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-weight:500;">技术栈</span>
+                    <span>Python Flask + SQLite + Bootstrap 5</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);">
+                    <span style="font-weight:500;">功能模块</span>
+                    <span>课程 · 任务 · 番茄钟 · 考试 · 统计</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:3px 0;">
+                    <span style="font-weight:500;">设计理念</span>
+                    <span>简洁清爽，专注学习</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ─── Stat card clickable ─── */
+.stat-card-link { display: block; border-radius: var(--radius-sm); transition: transform 0.2s; }
+.stat-card-link:hover { transform: translateY(-2px); }
+.stat-card-link:hover .stat-card { box-shadow: var(--neu-glow), var(--neu-pressed); }
+.stat-card.clickable { padding: 14px !important; cursor: pointer; }
+
+/* ─── Danger zone ─── */
+.danger-zone { border-left: 3px solid #e53e3e !important; }
+:root[color-mode="dark"] .danger-zone { border-left-color: #f87171 !important; }
+
+/* ─── Password ─── */
+.pwd-wrap { position: relative; }
+.pwd-wrap input { padding-right: 40px; }
+.pwd-toggle {
+    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    border: none; background: none; color: var(--text-muted);
+    cursor: pointer; padding: 6px 10px; font-size: 16px;
+    transition: color 0.2s;
+}
+.pwd-toggle:hover { color: var(--accent); }
+.pwd-strength {
+    height: 4px; background: var(--border); border-radius: 2px;
+    margin-top: 4px; overflow: hidden;
+}
+.pwd-strength-fill {
+    height: 100%; border-radius: 2px; width: 0;
+    transition: width 0.3s, background 0.3s;
+}
+
+/* ─── Achievement ─── */
+.achv-filter { font-size:12px;padding:4px 10px;border-radius:14px;cursor:pointer;border:1px solid var(--border);color:var(--text-muted); }
+.achv-filter:hover { border-color:var(--accent);color:var(--accent); }
+.achv-filter.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.achv-badge-item {
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:12px 6px 10px;border-radius:12px;text-align:center;
+    cursor:help;position:relative;z-index:1;
+    border:1px solid var(--border);background:var(--card-bg);
+    overflow:visible;
+}
+.achv-badge-item:hover { z-index:2; }
+.achv-badge-item.unlocked {
+    border-color:rgba(99,102,241,0.35);cursor:default;
+    background:linear-gradient(145deg,var(--accent-light),var(--card-bg) 70%);
+    box-shadow:0 2px 8px rgba(99,102,241,0.06);
+}
+.achv-badge-item.unlocked:hover {
+    transform:translateY(-4px);
+    box-shadow:0 8px 28px rgba(99,102,241,0.25);
+    border-color:var(--accent);
+    background:linear-gradient(145deg,var(--accent-light),var(--card-bg) 55%);
+}
+.achv-badge-item.rarity-2.unlocked { border-color:rgba(148,163,184,0.4); }
+.achv-badge-item.rarity-3.unlocked { border-color:rgba(251,191,36,0.5); box-shadow:0 0 12px rgba(251,191,36,0.1); }
+.achv-badge-item.rarity-4.unlocked { border-color:rgba(168,85,247,0.5); box-shadow:0 0 12px rgba(168,85,247,0.1); }
+.achv-badge-item.locked { opacity:0.85;filter:grayscale(0.35); }
+.achv-badge-item.locked:hover { opacity:1;filter:grayscale(0.1); }
+.achv-badge-item .ab-icon { font-size:28px;line-height:1;transition:transform 0.3s; }
+.achv-badge-item.unlocked:hover .ab-icon { transform:scale(1.15); }
+.achv-badge-item .ab-name {
+    font-size:11px;font-weight:600;color:var(--text);line-height:1.3;
+    max-width:70px;word-break:break-all;
+}
+.achv-badge-item.locked .ab-name { color:var(--text-secondary); }
+.achv-badge-item .ab-tooltip {
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(6px);
+    background:var(--card-bg);border:1px solid var(--accent);border-radius:10px;
+    padding:10px 14px;min-width:160px;max-width:220px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.3);z-index:9999;
+    opacity:0;visibility:hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    pointer-events:none;
+}
+.achv-badge-item.unlocked:hover .ab-tooltip {
+    opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);
+}
+.achv-badge-item.locked .ab-tooltip { border-color:var(--border); }
+.achv-badge-item.locked:hover .ab-tooltip {
+    opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);
+}
+.ab-tooltip .tt-name { font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px; }
+.ab-tooltip .tt-desc { font-size:11px;color:var(--text-secondary);line-height:1.4;margin-bottom:4px; }
+.ab-tooltip .tt-date { font-size:10px;color:var(--accent); }
+.ab-tooltip .tt-locked { font-size:10px;color:var(--text-muted);font-style:italic; }
+.ab-tooltip::after {
+    content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+    border:6px solid transparent;border-top-color:var(--accent);
+}
+.achv-badge-item.locked .ab-tooltip::after { border-top-color:var(--border); }
+
+/* ─── Responsive tweaks ─── */
+@media (max-width: 768px) {
+    .profile-xp-bar-wrap { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .profile-level-row { gap: 8px; }
+}
+</style>
+
+{% block scripts %}
+<script>
+// ─── Password toggle ───
+document.querySelectorAll('.pwd-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const input = btn.parentElement.querySelector('input');
+        const icon = btn.querySelector('i');
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    });
+});
+
+// ─── Password strength ───
+function checkPwdStrength() {
+    const pw = document.getElementById('pwdNew').value;
+    const bar = document.getElementById('pwdStrengthBar');
+    const fill = document.getElementById('pwdStrengthFill');
+    const label = document.getElementById('pwdStrengthLabel');
+    if (!pw) { bar.style.display = 'none'; label.textContent = ''; return; }
+    bar.style.display = 'block';
+    var score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const levels = [
+        { w: 20, color: '#e53e3e', text: '弱 — 太简单了' },
+        { w: 40, color: '#d69e2e', text: '较弱 — 再加点花样' },
+        { w: 60, color: '#d69e2e', text: '中等 — 还可以更好' },
+        { w: 80, color: '#38a169', text: '良好 👍' },
+        { w: 100, color: '#38a169', text: '强 💪' },
+    ];
+    var lv = levels[Math.min(score, levels.length - 1)];
+    fill.style.width = lv.w + '%';
+    fill.style.background = lv.color;
+    label.textContent = lv.text;
+    label.style.color = lv.color;
+}
+
+// ─── Password mismatch ───
+document.getElementById('pwdConfirm').addEventListener('input', function() {
+    var mm = document.getElementById('pwdMismatch');
+    mm.style.display = this.value && this.value !== document.getElementById('pwdNew').value ? '' : 'none';
+});
+
+function validatePwd() {
+    var pw = document.getElementById('pwdNew').value;
+    var cf = document.getElementById('pwdConfirm').value;
+    if (pw !== cf) {
+        document.getElementById('pwdMismatch').style.display = '';
+        return false;
+    }
+    return true;
+}
+
+// ─── Preferences (localStorage) ───
+(function() {
+    var pomoDur = document.getElementById('prefPomoDur');
+    var weekStart = document.getElementById('prefWeekStart');
+    if (pomoDur) {
+        pomoDur.value = localStorage.getItem('prefPomoDur') || '25';
+        pomoDur.addEventListener('change', () => localStorage.setItem('prefPomoDur', pomoDur.value));
+    }
+    if (weekStart) {
+        weekStart.value = localStorage.getItem('prefWeekStart') || '1';
+        weekStart.addEventListener('change', () => localStorage.setItem('prefWeekStart', weekStart.value));
+    }
+})();
+
+// ─── Achievement wall ───
+var RARITY = {'milestone':1,'volume':2,'streak':3,'explore':4};
+var _achvData = [];
+var _achvFilter = 'all';
+var _achvHints = {
+    'milestone': '迈出第一步就会有惊喜 ✨',
+    'volume': '坚持积累，水到渠成 🏆',
+    'streak': '每天来打卡试试吧 📅',
+    'explore': '在某个不经意的瞬间... 🌟'
+};
+
+function renderAchvWall() {
+    var html = '';
+    var unlockedCount = 0;
+    _achvData.forEach(a => { if (a.unlocked) unlockedCount++; });
+    document.getElementById('achvSummary').textContent = unlockedCount + '/' + _achvData.length + ' 已解锁';
+
+    _achvData.forEach(a => {
+        if (_achvFilter !== 'all' && a.category !== _achvFilter) return;
+        var r = RARITY[a.category] || 1;
+        html += '<div class="achv-badge-item ' + (a.unlocked ? 'unlocked rarity-' + r : 'locked') + '">' +
+            '<div class="ab-icon">' + (a.unlocked ? a.icon : '🔒') + '</div>' +
+            '<div class="ab-name">' + (a.unlocked ? a.name : '???') + '</div>' +
+            '<div class="ab-tooltip">';
+        if (a.unlocked) {
+            html += '<div class="tt-name">' + a.icon + ' ' + a.name + '</div>' +
+                '<div class="tt-desc">' + a.description + '</div>' +
+                '<div class="tt-date">' + a.unlocked_at.slice(0, 10) + '</div>';
+        } else {
+            html += '<div class="tt-name">🔒 ???</div>' +
+                '<div class="tt-locked">尚未解锁</div>' +
+                '<div class="tt-locked" style="margin-top:2px;color:var(--text-muted);opacity:0.7;">' + (a.hint || _achvHints[a.category] || '') + '</div>';
+        }
+        html += '</div></div>';
+    });
+    document.getElementById('achvWall').innerHTML = html || '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;">暂无此类成就</div>';
+}
+
+fetch('/api/achievements').then(r => r.json()).then(achs => {
+    _achvData = achs;
+    renderAchvWall();
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('achv-filter')) {
+        document.querySelectorAll('.achv-filter').forEach(f => f.classList.remove('active'));
+        e.target.classList.add('active');
+        _achvFilter = e.target.dataset.cat;
+        renderAchvWall();
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

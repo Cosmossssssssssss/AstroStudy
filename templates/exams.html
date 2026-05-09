@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}考试 - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <h1>考试倒计时</h1>
+        <p>安排考试，合理规划复习</p>
+    </div>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addExam">
+        <i class="bi bi-plus-lg"></i> 添加考试
+    </button>
+</div>
+
+{% if exams %}
+{% for exam in exams %}
+<div class="card">
+    <div style="display:flex;align-items:center;gap:20px;">
+        {% set days_left = exam.days_left if exam.days_left is defined else 0 %}
+        <div class="exam-days" style="background:{{ exam.course_color or '#4A90D9' }};width:72px;height:72px;">
+            <span class="num" style="font-size:28px;">{% if days_left >= 0 %}{{ days_left }}{% else %}已过{% endif %}</span>
+            {% if days_left >= 0 %}<span class="unit">天</span>{% endif %}
+        </div>
+        <div style="flex:1;">
+            <div style="font-size:18px;font-weight:700;">{{ exam.name }}</div>
+            <div style="font-size:13px;color:#a0aec0;margin-top:4px;">
+                <i class="bi bi-calendar3"></i> {{ (exam.exam_date|string)[:10] }}
+                {% if exam.location %}
+                &nbsp; <i class="bi bi-geo-alt"></i> {{ exam.location }}
+                {% endif %}
+                {% if exam.course_name %}
+                &nbsp; <span class="course-tag" style="background:{{ exam.course_color }};">{{ exam.course_name }}</span>
+                {% endif %}
+            </div>
+            {% if exam.notes %}
+            <div style="font-size:13px;color:#718096;margin-top:6px;">{{ exam.notes }}</div>
+            {% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('exams.delete_exam', id=exam.id) }}" style="margin:0;"
+              onsubmit="return confirm('删除「{{ exam.name }}」？')">
+            <button type="submit" style="border:none;background:none;color:#ccc;cursor:pointer;font-size:18px;">
+                <i class="bi bi-trash3"></i>
+            </button>
+        </form>
+    </div>
+
+    <!-- Progress bar hint -->
+    {% if days_left >= 0 and days_left <= 30 %}
+    <div style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#a0aec0;margin-bottom:4px;">
+            <span>复习进度</span>
+            <span>还剩 {{ days_left }} 天</span>
+        </div>
+        <div style="height:6px;background:#e8ecf1;border-radius:3px;overflow:hidden;">
+            {% set pct = ((30 - days_left) / 30 * 100) | int %}
+            <div style="height:100%;width:{{ pct if pct > 0 else 5 }}%;background:{{ exam.course_color or '#4A90D9' }};border-radius:3px;transition:width 0.3s;"></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card" style="text-align:center;padding:48px;">
+    <i class="bi bi-calendar-check" style="font-size:48px;color:#e8ecf1;display:block;margin-bottom:16px;"></i>
+    <div style="font-size:14px;color:#a0aec0;">暂无考试安排</div>
+    <div style="font-size:13px;color:#cbd5e0;margin-top:4px;">点击右上角添加考试</div>
+</div>
+{% endif %}
+
+<!-- Add Exam Modal -->
+<div class="modal fade" id="addExam" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('exams.add_exam') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size:16px;">添加考试</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">考试名称</label>
+                        <input name="name" class="form-control" placeholder="如：高等数学期末考试" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">考试日期</label>
+                            <input name="exam_date" type="date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:13px;font-weight:500;">考场</label>
+                            <input name="location" class="form-control" placeholder="可选">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">关联课程</label>
+                        <select name="course_id" class="form-select">
+                            <option value="">— 无 —</option>
+                            {% for c in courses %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px;font-weight:500;">备注</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="考试范围、注意事项等"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:#e8ecf1;">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

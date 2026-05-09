@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN" color-mode="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专注模式 - AstroStudy</title>
+    <script>
+        if (localStorage.getItem("color-mode") === "dark" ||
+            (window.matchMedia("(prefers-color-scheme: dark)").matches && !localStorage.getItem("color-mode"))) {
+            document.documentElement.setAttribute("color-mode", "dark");
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --focus-radius: 16px;
+        }
+        :root[color-mode="light"] {
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #a0aec0;
+            --accent: #4A90D9;
+            --accent-hover: #3b7dc4;
+            --accent-light: #ebf2fa;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --overlay-bg: rgba(255,255,255,0.7);
+            --particle-color: 74,144,217;
+        }
+        :root[color-mode="dark"] {
+            --bg: #0f1117;
+            --card-bg: #1a1d28;
+            --text: #e2e8f0;
+            --text-secondary: #a0aec0;
+            --text-muted: #6b7280;
+            --accent: #6b8cff;
+            --accent-hover: #5a7af0;
+            --accent-light: rgba(107,140,255,0.12);
+            --border: #2d3348;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --overlay-bg: rgba(15,17,23,0.75);
+            --particle-color: 107,140,255;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background-color 0.3s ease;
+        }
+
+        /* ─── Particle Canvas ─── */
+        #particles {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ─── Main Container ─── */
+        .focus-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 32px;
+            padding: 24px;
+        }
+
+        /* ─── Timer Ring ─── */
+        .timer-wrapper {
+            position: relative;
+            width: 280px;
+            height: 280px;
+        }
+        .timer-ring-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 280px; height: 280px;
+            transform: rotate(-90deg);
+        }
+        .timer-ring-svg circle {
+            fill: none;
+            stroke-width: 5;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.4s linear, stroke 0.4s;
+        }
+        .ring-track { stroke: var(--border); }
+        .ring-progress {
+            stroke: var(--accent);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            transition: stroke 0.8s ease;
+        }
+        .ring-progress.rest { stroke: #38a169; }
+        .ring-progress.warning { stroke: #f59e0b; }
+        .ring-progress.urgent { stroke: #ef4444; }
+
+        @keyframes ringBreathe {
+            0%, 100% { transform: rotate(-90deg) scale(1); }
+            50% { transform: rotate(-90deg) scale(1.015); }
+        }
+        .timer-wrapper.running .ring-progress { animation: ringBreathe 4s ease-in-out infinite; }
+
+        .ring-trail-dot {
+            fill: #a5b4fc;
+            filter: drop-shadow(0 0 6px rgba(129,140,248,0.7));
+            transition: cx 0.3s linear, cy 0.3s linear, fill 0.8s ease;
+        }
+        .ring-trail-dot.rest { fill: #68d391; filter: drop-shadow(0 0 6px rgba(104,211,145,0.6)); }
+        .ring-trail-dot.warning { fill: #fbbf24; filter: drop-shadow(0 0 8px rgba(251,191,36,0.7)); }
+        .ring-trail-dot.urgent { fill: #f87171; filter: drop-shadow(0 0 10px rgba(248,113,113,0.8)); }
+
+        .timer-display {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .timer-time {
+            font-size: 64px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 2px;
+            line-height: 1;
+            color: var(--text);
+            transition: font-size 0.3s;
+        }
+        .timer-label {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
+        /* ─── Controls ─── */
+        .focus-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .focus-btn {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+        .focus-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-light);
+            box-shadow: 0 0 16px rgba(74,144,217,0.15);
+            transform: translateY(-2px);
+        }
+        .focus-btn.play-btn {
+            width: 64px; height: 64px;
+            font-size: 28px;
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+            box-shadow: 0 4px 20px rgba(74,144,217,0.3);
+        }
+        .focus-btn.play-btn:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+            box-shadow: 0 6px 24px rgba(74,144,217,0.4);
+        }
+        .focus-btn.play-btn.paused {
+            background: #f39c12;
+            border-color: #f39c12;
+            box-shadow: 0 4px 20px rgba(243,156,18,0.3);
+        }
+
+        /* ─── Presets ─── */
+        .preset-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .preset-btn {
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 13px;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: var(--shadow-sm);
+        }
+        .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .preset-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 2px 8px rgba(74,144,217,0.25);
+        }
+
+        /* ─── Sound Panel ─── */
+        .sound-panel {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 600px;
+        }
+        .sound-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 12px 16px;
+            border-radius: var(--focus-radius);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            min-width: 72px;
+        }
+        .sound-item:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+        .sound-item.active {
+            border-color: var(--accent);
+            background: var(--accent-light);
+            box-shadow: 0 0 12px rgba(74,144,217,0.15);
+        }
+        .sound-icon {
+            font-size: 22px;
+            transition: transform 0.3s ease;
+        }
+        .sound-item.active .sound-icon { transform: scale(1.1); }
+        .sound-name {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ─── Volume Slider ─── */
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 20px;
+            border-radius: 24px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+        .volume-row i { font-size: 16px; color: var(--text-muted); }
+        .volume-row input[type="range"] {
+            width: 120px;
+            accent-color: var(--accent);
+        }
+        .volume-val {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+            min-width: 32px;
+            text-align: right;
+        }
+
+        /* ─── Bottom Bar ─── */
+        .bottom-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat-pill {
+            padding: 8px 18px;
+            border-radius: 24px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .stat-pill strong { color: var(--accent); }
+
+        .back-link {
+            position: fixed;
+            top: 20px; left: 20px;
+            z-index: 10;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: var(--shadow-sm);
+        }
+        .back-link:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* ─── Toast ─── */
+        .focus-toast {
+            position: fixed;
+            top: 20px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            padding: 10px 24px;
+            border-radius: 24px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .focus-toast.show { opacity: 1; }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 640px) {
+            .timer-wrapper { width: 220px; height: 220px; }
+            .timer-ring-svg { width: 220px; height: 220px; }
+            .timer-time { font-size: 48px; }
+            .sound-panel { gap: 8px; }
+            .sound-item { padding: 10px 12px; min-width: 60px; }
+            .sound-name { font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particles"></canvas>
+
+    <a href="{{ url_for('pomodoro.pomodoro') }}" class="back-link" title="返回番茄钟">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+
+    <div class="focus-toast" id="toast"></div>
+
+    <div class="focus-container">
+        <!-- Timer -->
+        <div class="timer-wrapper">
+            <svg class="timer-ring-svg" viewBox="0 0 280 280">
+                <circle class="ring-track" cx="140" cy="140" r="134"/>
+                <circle class="ring-progress" id="ringProgress" cx="140" cy="140" r="134"
+                    stroke-dasharray="841.95" stroke-dashoffset="0"/>
+            </svg>
+            <div class="timer-display">
+                <div class="timer-time" id="timerDisplay">25:00</div>
+                <div class="timer-label" id="timerLabel">准备开始</div>
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="preset-row">
+            <button class="preset-btn" data-min="15">15 分钟</button>
+            <button class="preset-btn active" data-min="25">25 分钟</button>
+            <button class="preset-btn" data-min="45">45 分钟</button>
+            <button class="preset-btn" data-min="60">60 分钟</button>
+        </div>
+
+        <!-- Play Controls -->
+        <div class="focus-controls">
+            <button class="focus-btn" id="btnFullscreen" title="全屏 (F)">
+                <i class="bi bi-arrows-fullscreen"></i>
+            </button>
+            <button class="focus-btn" id="btnReset" title="重置 (R)">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+            <button class="focus-btn play-btn" id="btnPlay" title="开始 (Space)">
+                <i class="bi bi-play-fill"></i>
+            </button>
+            <button class="focus-btn" id="btnSkip" title="跳过休息" style="display:none;">
+                <i class="bi bi-skip-forward-fill"></i>
+            </button>
+        </div>
+
+        <!-- Sound Panel -->
+        <div class="sound-panel" id="soundPanel">
+        </div>
+
+        <!-- Volume -->
+        <div class="volume-row">
+            <i class="bi bi-volume-down-fill"></i>
+            <input type="range" id="masterVolume" min="0" max="100" value="40" step="1">
+            <i class="bi bi-volume-up-fill"></i>
+            <span class="volume-val" id="volVal">40%</span>
+        </div>
+
+        <!-- Stats -->
+        <div class="bottom-bar">
+            <div class="stat-pill">
+                <i class="bi bi-tomato"></i>
+                今日番茄 <strong id="todayCount">{{ today_count }}</strong>
+            </div>
+            <div class="stat-pill">
+                <i class="bi bi-clock-fill"></i>
+                今日专注 <strong id="todayMinutes">{{ today_minutes }}m</strong>
+            </div>
+            <div class="stat-pill" id="sessionCounterPill" style="display:none;">
+                <i class="bi bi-check-circle-fill"></i>
+                本轮第 <strong id="sessionCounter">1</strong> 个
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ═══════════════════════════════════════════
+    //  AmbientSoundManager — Web Audio API noise synthesis
+    // ═══════════════════════════════════════════
+    const SoundManager = {
+        ctx: null,
+        masterGain: null,
+        sounds: {},
+        volume: 0.4,
+        activeNames: new Set(),
+
+        _ensureCtx() {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = this.volume;
+                this.masterGain.connect(this.ctx.destination);
+            }
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        },
+
+        // White noise buffer
+        _whiteBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 2;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+            return buf;
+        },
+
+        // Pink noise (Paul Kellet refined method)
+        _pinkBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 2;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            const b = [0,0,0,0,0,0,0];
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                b[0] = 0.99886 * b[0] + white * 0.0555179;
+                b[1] = 0.99332 * b[1] + white * 0.0750759;
+                b[2] = 0.96900 * b[2] + white * 0.1538520;
+                b[3] = 0.86650 * b[3] + white * 0.3104856;
+                b[4] = 0.55000 * b[4] + white * 0.5329522;
+                b[5] = -0.7616 * b[5] - white * 0.0168980;
+                let pink = b[0]+b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+white*0.5362;
+                pink *= 0.11;
+                b[6] = white * 0.115926;
+                data[i] = Math.max(-1, Math.min(1, pink));
+            }
+            return buf;
+        },
+
+        // Brown noise (integrated white noise)
+        _brownBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 2;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            let lastOut = 0;
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                const out = (lastOut + 0.02 * white) / 1.02;
+                lastOut = out;
+                data[i] = Math.max(-1, Math.min(1, out * 3.5));
+            }
+            return buf;
+        },
+
+        // Rain: brown noise + bandpass ~800Hz + random crackle layer
+        _rainBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 4;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            let out = 0;
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                out = (out + 0.008 * white) / 1.008;
+                // Random crackle
+                const crackle = Math.random() < 0.002 ? (Math.random() - 0.5) * 3 : 0;
+                data[i] = Math.max(-1, Math.min(1, out * 2.5 + crackle));
+            }
+            return buf;
+        },
+
+        // Forest: pink noise + lowpass ~2kHz + slow LFO
+        _forestBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 4;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            const b = [0,0,0,0,0,0,0];
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                b[0] = 0.99886*b[0] + white*0.0555179;
+                b[1] = 0.99332*b[1] + white*0.0750759;
+                b[2] = 0.96900*b[2] + white*0.1538520;
+                b[3] = 0.86650*b[3] + white*0.3104856;
+                b[4] = 0.55000*b[4] + white*0.5329522;
+                b[5] = -0.7616*b[5] - white*0.0168980;
+                let pink = b[0]+b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+white*0.5362;
+                pink *= 0.08;
+                b[6] = white * 0.115926;
+                // Slow LFO amplitude modulation
+                const lfo = 0.7 + 0.3 * Math.sin(i / sr * Math.PI * 2 * 0.5);
+                data[i] = Math.max(-1, Math.min(1, pink * lfo));
+                // Random chirps (birds)
+                if (Math.random() < 0.0003) {
+                    const freq = 2000 + Math.random() * 3000;
+                    const dur = 0.05 + Math.random() * 0.1;
+                    for (let j = 0; j < dur*sr && i+j < len; j++) {
+                        data[i+j] += 0.15 * Math.sin(j/sr*freq*Math.PI*2) * (1 - j/(dur*sr));
+                    }
+                }
+            }
+            return buf;
+        },
+
+        // Coffee shop: brown noise + bandpass ~400Hz + high-freq chatter flickers
+        _coffeeBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 4;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            let out = 0;
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                out = (out + 0.01 * white) / 1.01;
+                // Occasional high-frequency chatter burst
+                let chatter = 0;
+                if (Math.random() < 0.0008) {
+                    const dur = 2000 + Math.random() * 3000;
+                    for (let j = 0; j < dur && i+j < len; j += 2) {
+                        chatter = Math.sin(i/sr*800*Math.PI*2) * (Math.random()-0.5) * 0.3 * (1-j/dur);
+                        if (i+j < len) data[i+j] += chatter;
+                    }
+                }
+                data[i] = Math.max(-1, Math.min(1, out * 2 + data[i]));
+            }
+            return buf;
+        },
+
+        // Fire: brown noise base + random pop/crackle bursts
+        _fireBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 4;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            let out = 0;
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                out = (out + 0.015 * white) / 1.015;
+                data[i] = out * 2;
+                // Random pop/crackle
+                if (Math.random() < 0.003) {
+                    const amp = 0.3 + Math.random() * 0.7;
+                    const dur = 50 + Math.random() * 150;
+                    for (let j = 0; j < dur && i+j < len; j++) {
+                        data[i+j] += amp * (Math.random() * 2 - 1) * (1 - j/dur);
+                    }
+                }
+            }
+            return buf;
+        },
+
+        // Wind: pink noise + slow LFO modulated bandpass
+        _windBuf() {
+            const sr = this.ctx.sampleRate;
+            const len = sr * 4;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            const b = [0,0,0,0,0,0,0];
+            for (let i = 0; i < len; i++) {
+                const white = Math.random() * 2 - 1;
+                b[0] = 0.99886*b[0] + white*0.0555179;
+                b[1] = 0.99332*b[1] + white*0.0750759;
+                b[2] = 0.96900*b[2] + white*0.1538520;
+                b[3] = 0.86650*b[3] + white*0.3104856;
+                b[4] = 0.55000*b[4] + white*0.5329522;
+                b[5] = -0.7616*b[5] - white*0.0168980;
+                let pink = b[0]+b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+white*0.5362;
+                pink *= 0.12;
+                b[6] = white * 0.115926;
+                // LFO with varying speed
+                const lfoFreq = 0.08 + 0.04 * Math.sin(i / sr * Math.PI * 2 * 0.03);
+                const lfo = 0.5 + 0.5 * Math.sin(i / sr * Math.PI * 2 * lfoFreq);
+                data[i] = Math.max(-1, Math.min(1, pink * (0.4 + 0.6 * lfo)));
+            }
+            return buf;
+        },
+
+        soundDefs: [
+            { id: 'white',  name: '白噪音', icon: 'bi-soundwave',             gen: '_whiteBuf' },
+            { id: 'pink',   name: '粉噪音', icon: 'bi-vinyl-fill',            gen: '_pinkBuf' },
+            { id: 'brown',  name: '棕噪音', icon: 'bi-cpu',                   gen: '_brownBuf' },
+            { id: 'rain',   name: '雨声',   icon: 'bi-cloud-drizzle-fill',    gen: '_rainBuf' },
+            { id: 'forest', name: '森林',   icon: 'bi-tree-fill',             gen: '_forestBuf' },
+            { id: 'coffee', name: '咖啡厅', icon: 'bi-cup-hot-fill',          gen: '_coffeeBuf' },
+            { id: 'fire',   name: '壁炉',   icon: 'bi-fire',                  gen: '_fireBuf' },
+            { id: 'wind',   name: '风声',   icon: 'bi-wind',                  gen: '_windBuf' },
+        ],
+
+        play(name) {
+            this._ensureCtx();
+            if (this.sounds[name]) return;
+            const def = this.soundDefs.find(d => d.id === name);
+            if (!def) return;
+            const buf = this[def.gen]();
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            const gain = this.ctx.createGain();
+            gain.gain.value = 1;
+            src.connect(gain);
+            gain.connect(this.masterGain);
+            src.start();
+            this.sounds[name] = { source: src, gain };
+            this.activeNames.add(name);
+        },
+
+        stop(name) {
+            const s = this.sounds[name];
+            if (!s) return;
+            try { s.source.stop(); } catch(e) {}
+            s.source.disconnect();
+            s.gain.disconnect();
+            delete this.sounds[name];
+            this.activeNames.delete(name);
+        },
+
+        toggle(name) {
+            if (this.sounds[name]) { this.stop(name); return false; }
+            else { this.play(name); return true; }
+        },
+
+        setVolume(v) {
+            this.volume = v / 100;
+            if (this.masterGain) this.masterGain.gain.value = this.volume;
+        },
+
+        destroy() {
+            Object.keys(this.sounds).forEach(n => this.stop(n));
+            if (this.ctx) { this.ctx.close(); this.ctx = null; this.masterGain = null; }
+        }
+    };
+
+    // Build sound panel UI
+    (function buildSoundPanel() {
+        const panel = document.getElementById('soundPanel');
+        SoundManager.soundDefs.forEach(def => {
+            const el = document.createElement('div');
+            el.className = 'sound-item';
+            el.dataset.sound = def.id;
+            el.innerHTML = `<i class="bi ${def.icon} sound-icon"></i><span class="sound-name">${def.name}</span>`;
+            el.addEventListener('click', () => {
+                const active = SoundManager.toggle(def.id);
+                el.classList.toggle('active', active);
+                toast(def.name + (active ? ' 已开启' : ' 已关闭'));
+            });
+            panel.appendChild(el);
+        });
+    })();
+
+    // ═══════════════════════════════════════════
+    //  Particle System
+    // ═══════════════════════════════════════════
+    const ParticleSystem = {
+        canvas: document.getElementById('particles'),
+        ctx: null,
+        particles: [],
+        count: 40,
+        animId: null,
+
+        init() {
+            this.ctx = this.canvas.getContext('2d');
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+            this.spawnAll();
+            this.loop();
+        },
+
+        resize() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+        },
+
+        getParticleColor() {
+            const mode = document.documentElement.getAttribute('color-mode') || 'light';
+            return mode === 'dark' ? '107,140,255' : '74,144,217';
+        },
+
+        spawnAll() {
+            this.particles = [];
+            for (let i = 0; i < this.count; i++) this._spawn(true);
+        },
+
+        _spawn(randomY) {
+            const rgb = this.getParticleColor();
+            this.particles.push({
+                x: Math.random() * this.canvas.width,
+                y: randomY ? Math.random() * this.canvas.height : this.canvas.height + 20,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: -(0.1 + Math.random() * 0.4),
+                size: 1.5 + Math.random() * 3,
+                alpha: 0.1 + Math.random() * 0.4,
+                color: rgb,
+            });
+        },
+
+        update() {
+            for (let i = this.particles.length - 1; i >= 0; i--) {
+                const p = this.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.y < -20 || p.x < -20 || p.x > this.canvas.width + 20) {
+                    this.particles.splice(i, 1);
+                    this._spawn(false);
+                }
+            }
+        },
+
+        draw() {
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+                ctx.fill();
+            });
+        },
+
+        loop() {
+            this.update();
+            this.draw();
+            this.animId = requestAnimationFrame(() => this.loop());
+        },
+
+        destroy() {
+            if (this.animId) cancelAnimationFrame(this.animId);
+        }
+    };
+    ParticleSystem.init();
+
+    // ═══════════════════════════════════════════
+    //  Timer Logic
+    // ═══════════════════════════════════════════
+    let timerInterval = null;
+    let totalSeconds = 25 * 60;
+    let remaining = totalSeconds;
+    let isRunning = false;
+    let isRest = false;
+    let sessionCount = 0;
+
+    const CIRCUMFERENCE = 2 * Math.PI * 134; // ~841.95
+    const ringEl = document.getElementById('ringProgress');
+
+    function getDuration() {
+        const active = document.querySelector('.preset-btn.active');
+        return active ? parseInt(active.dataset.min) : 25;
+    }
+
+    function updateDisplay() {
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        document.getElementById('timerDisplay').textContent =
+            String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+        document.title = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} - ${isRest ? '休息' : '专注'} - AstroStudy`;
+
+        // Ring progress
+        const progress = totalSeconds > 0 ? remaining / totalSeconds : 0;
+        ringEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+
+        // Ring color
+        ringEl.classList.remove('rest','warning','urgent');
+        if (isRest) {
+            ringEl.classList.add('rest');
+        } else if (progress < 0.25) {
+            ringEl.classList.add('urgent');
+        } else if (progress < 0.5) {
+            ringEl.classList.add('warning');
+        }
+    }
+
+    function playSound(type) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            if (type === 'work') {
+                osc.frequency.value = 880;
+                gain.gain.value = 0.25;
+                osc.start();
+                setTimeout(() => { osc.frequency.value = 660; }, 200);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+                osc.stop(ctx.currentTime + 0.6);
+            } else {
+                osc.frequency.value = 523;
+                gain.gain.value = 0.2;
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+                osc.stop(ctx.currentTime + 0.5);
+            }
+        } catch(e) {}
+    }
+
+    function startTimer() {
+        if (isRunning) return;
+        isRunning = true;
+        const btn = document.getElementById('btnPlay');
+        btn.querySelector('i').className = 'bi bi-pause-fill';
+        btn.classList.add('paused');
+        document.getElementById('timerLabel').textContent = isRest ? '☕ 休息中...' : '🍅 专注中...';
+        document.getElementById('btnSkip').style.display = isRest ? '' : 'none';
+
+        timerInterval = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                isRunning = false;
+
+                if (!isRest) {
+                    playSound('work');
+                    // Save pomodoro
+                    const duration = getDuration();
+                    fetch('/pomodoro/complete', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: `duration=${duration}&task_id=`
+                    }).then(() => {
+                        document.getElementById('todayCount').textContent =
+                            parseInt(document.getElementById('todayCount').textContent) + 1;
+                        document.getElementById('todayMinutes').textContent =
+                            parseInt(document.getElementById('todayMinutes').textContent) + duration + 'm';
+                    });
+                    sessionCount++;
+                    document.getElementById('sessionCounter').textContent = sessionCount;
+                    document.getElementById('sessionCounterPill').style.display = '';
+
+                    isRest = true;
+                    remaining = 5 * 60;
+                    totalSeconds = remaining;
+                    document.getElementById('timerLabel').textContent = '🎉 专注完成！休息一下';
+                    document.getElementById('btnSkip').style.display = '';
+                } else {
+                    playSound('rest');
+                    isRest = false;
+                    remaining = getDuration() * 60;
+                    totalSeconds = remaining;
+                    document.getElementById('timerLabel').textContent = '⏰ 休息结束，继续加油！';
+                    document.getElementById('btnSkip').style.display = 'none';
+                }
+
+                document.getElementById('btnPlay').querySelector('i').className = 'bi bi-play-fill';
+                document.getElementById('btnPlay').classList.remove('paused');
+                updateDisplay();
+                return;
+            }
+            updateDisplay();
+        }, 1000);
+    }
+
+    function pauseTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        const btn = document.getElementById('btnPlay');
+        btn.querySelector('i').className = 'bi bi-play-fill';
+        btn.classList.remove('paused');
+        document.getElementById('timerLabel').textContent = '⏸ 已暂停';
+    }
+
+    function resetTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        isRest = false;
+        sessionCount = 0;
+        remaining = getDuration() * 60;
+        totalSeconds = remaining;
+        document.getElementById('sessionCounterPill').style.display = 'none';
+        const btn = document.getElementById('btnPlay');
+        btn.querySelector('i').className = 'bi bi-play-fill';
+        btn.classList.remove('paused');
+        document.getElementById('timerLabel').textContent = '准备开始';
+        document.getElementById('btnSkip').style.display = 'none';
+        ringEl.classList.remove('rest','warning','urgent');
+        updateDisplay();
+    }
+
+    function skipRest() {
+        if (!isRest || !isRunning) return;
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        isRest = false;
+        remaining = getDuration() * 60;
+        totalSeconds = remaining;
+        document.getElementById('timerLabel').textContent = '准备开始';
+        document.getElementById('btnSkip').style.display = 'none';
+        document.getElementById('btnPlay').querySelector('i').className = 'bi bi-play-fill';
+        document.getElementById('btnPlay').classList.remove('paused');
+        ringEl.classList.remove('rest','warning','urgent');
+        updateDisplay();
+        toast('已跳过休息 ⏭');
+    }
+
+    // Button handlers
+    document.getElementById('btnPlay').addEventListener('click', () => {
+        if (isRunning) pauseTimer(); else startTimer();
+    });
+    document.getElementById('btnReset').addEventListener('click', resetTimer);
+    document.getElementById('btnSkip').addEventListener('click', skipRest);
+
+    // ═══════════════════════════════════════════
+    //  Fullscreen
+    // ═══════════════════════════════════════════
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+        const icon = document.getElementById('btnFullscreen').querySelector('i');
+        icon.className = document.fullscreenElement
+            ? 'bi bi-fullscreen-exit'
+            : 'bi bi-arrows-fullscreen';
+    });
+
+    // ═══════════════════════════════════════════
+    //  Preset buttons
+    // ═══════════════════════════════════════════
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (isRunning) return;
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            remaining = getDuration() * 60;
+            totalSeconds = remaining;
+            updateDisplay();
+        });
+    });
+
+    // ═══════════════════════════════════════════
+    //  Volume
+    // ═══════════════════════════════════════════
+    const volSlider = document.getElementById('masterVolume');
+    const volVal = document.getElementById('volVal');
+    volSlider.addEventListener('input', () => {
+        const v = parseInt(volSlider.value);
+        volVal.textContent = v + '%';
+        SoundManager.setVolume(v);
+    });
+
+    // ═══════════════════════════════════════════
+    //  Keyboard Shortcuts
+    // ═══════════════════════════════════════════
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (isRunning) pauseTimer(); else startTimer();
+        }
+        if (e.key === 'r' || e.key === 'R') {
+            if (!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) resetTimer();
+        }
+        if (e.key === 'f' || e.key === 'F') {
+            if (!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) toggleFullscreen();
+        }
+        if (e.key === 'Escape') {
+            if (document.fullscreenElement) document.exitFullscreen();
+        }
+    });
+
+    // ═══════════════════════════════════════════
+    //  Toast
+    // ═══════════════════════════════════════════
+    let toastTimer = null;
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    // ═══════════════════════════════════════════
+    //  Restore saved volume
+    // ═══════════════════════════════════════════
+    (function() {
+        const saved = localStorage.getItem('focusMasterVolume');
+        if (saved !== null) {
+            volSlider.value = saved;
+            volVal.textContent = saved + '%';
+            SoundManager.setVolume(parseInt(saved));
+        }
+    })();
+    volSlider.addEventListener('change', () => {
+        localStorage.setItem('focusMasterVolume', volSlider.value);
+    });
+
+    // ═══════════════════════════════════════════
+    //  Cleanup on page unload
+    // ═══════════════════════════════════════════
+    window.addEventListener('beforeunload', () => {
+        SoundManager.destroy();
+        ParticleSystem.destroy();
+    });
+
+    // Init display
+    updateDisplay();
+    </script>
+</body>
+</html>

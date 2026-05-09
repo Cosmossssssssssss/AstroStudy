@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% block title %}首页 - AstroStudy{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <h1 id="greeting">今天</h1>
+        <p style="margin:0;">{{ today.strftime('%Y-%m-%d') }}</p>
+    </div>
+    {% if course_count == 0 and today_tasks|length == 0 %}
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-radius:12px;background:var(--accent-light);border:1px solid var(--border);">
+        <span style="font-size:18px;">🚀</span>
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">开始你的学习之旅</span>
+        <span style="font-size:12px;color:var(--text-muted);">添加课程 → 创建任务 → 番茄钟专注学习</span>
+        <a href="{{ url_for('courses.courses') }}" class="btn btn-primary btn-sm" style="white-space:nowrap;padding:5px 16px;font-size:12px;">开始</a>
+    </div>
+    {% else %}
+    <div id="fortuneCard" style="display:none;cursor:pointer;"></div>
+    {% endif %}
+</div>
+
+<!-- Row 1: Stats -->
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ today_minutes }}</div>
+            <div class="stat-label">今日学习 (分钟)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ week_minutes }}</div>
+            <div class="stat-label">本周学习 (分钟)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" style="color:#38a169;">{{ streak }}</div>
+            <div class="stat-label">连续学习天数</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" style="color:#d69e2e;">{{ today_tasks|length }}</div>
+            <div class="stat-label">待完成任务</div>
+        </div>
+    </div>
+</div>
+
+<div class="card daily-quote-card" id="dailyQuote" style="margin-bottom:16px;padding:18px 22px;cursor:pointer;background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(245,158,11,0.04));border-left:4px solid var(--accent);">
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+        <i class="bi bi-quote" style="font-size:28px;color:var(--accent);flex-shrink:0;opacity:0.5;"></i>
+        <div style="flex:1;min-width:0;">
+            <div id="quoteText" style="font-size:15px;font-weight:500;line-height:1.6;color:var(--text);margin-bottom:6px;"></div>
+            <div id="quoteAuthor" style="font-size:12px;color:var(--text-muted);text-align:right;"></div>
+        </div>
+        <i class="bi bi-arrow-repeat" id="quoteRefresh" style="font-size:16px;color:var(--text-muted);flex-shrink:0;opacity:0;transition:opacity 0.2s;cursor:pointer;" title="换一句"></i>
+    </div>
+</div>
+<style>
+.daily-quote-card { background: linear-gradient(135deg, var(--accent-light), var(--card-bg)); }
+.daily-quote-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.daily-quote-card:hover #quoteRefresh { opacity: 1; }
+:root[color-mode="dark"] .daily-quote-card { background: linear-gradient(135deg, rgba(107,140,255,0.1), var(--card-bg)); }
+@media (max-width: 768px) { .page-header { flex-direction: column !important; align-items: flex-start !important; gap: 10px; } }
+
+/* ─── Fortune Overlay (Chinese Style) ─── */
+.fo-overlay { position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px); }
+.fo-bucket-wrap { position:relative;cursor:pointer;transform:translateY(0);transition:transform 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+.fo-bucket-wrap.shaking { animation: foShake 0.6s ease-in-out; }
+@keyframes foShake {
+    0%,100%{transform:translateX(0)}
+    10%{transform:translateX(-8px) rotate(-3deg)}
+    20%{transform:translateX(8px) rotate(3deg)}
+    30%{transform:translateX(-12px) rotate(-5deg)}
+    40%{transform:translateX(12px) rotate(5deg)}
+    50%{transform:translateX(-8px) rotate(-3deg)}
+    60%{transform:translateX(8px) rotate(3deg)}
+    70%{transform:translateX(-4px) rotate(-1deg)}
+    80%{transform:translateX(4px) rotate(1deg)}
+}
+.fo-bucket { width:140px;height:180px;position:relative;margin:0 auto;z-index:2;
+    background:linear-gradient(180deg, #5C2D0E 0%, #4A2008 30%, #3E1A06 60%, #2A1004 100%);
+    border-radius:14px 14px 22px 22px;
+    box-shadow:0 0 80px rgba(255,180,50,0.1),0 0 20px rgba(0,0,0,0.25),inset 0 -10px 16px rgba(0,0,0,0.5); }
+.fo-bucket::before { content:'';position:absolute;top:-12px;left:-10px;right:-10px;height:16px;z-index:10;
+    background:linear-gradient(180deg, #d4a030, #b88620, #9a6c15);
+    border-radius:8px 8px 0 0;box-shadow:0 2px 6px rgba(0,0,0,0.5),0 0 16px rgba(200,146,42,0.25); }
+.fo-bucket::after { content:'';position:absolute;bottom:12px;left:10px;right:10px;height:2px;
+    background:linear-gradient(90deg, transparent, rgba(255,190,50,0.2), transparent); }
+.fo-sticks { position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;align-items:flex-end;height:130px;overflow:visible;z-index:0; }
+.fo-stick { width:6px;border-radius:3px 3px 1px 1px;position:relative;
+    background:linear-gradient(180deg, #f0e0b0 0%, #e0c888 25%, #c4a050 60%, #9a7a30 100%);
+    box-shadow:0 0 2px rgba(0,0,0,0.3);transition:transform 0.8s cubic-bezier(0.25,0.46,0.45,0.94),opacity 0.5s; }
+.fo-stick::after { content:'';position:absolute;top:0;left:1px;right:1px;height:5px;background:rgba(255,230,160,0.35);border-radius:3px 3px 0 0; }
+.fo-stick.fly { position:absolute;z-index:10;animation: foStickFly 1.2s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+@keyframes foStickFly {
+    0%{transform:translateY(0) rotate(0);opacity:1}
+    40%{transform:translateY(-160px) rotate(-10deg);opacity:1}
+    70%{transform:translateY(-280px) rotate(6deg);opacity:0.6}
+    100%{transform:translateY(-450px) rotate(0);opacity:0}
+}
+.fo-result { display:none;text-align:center;max-width:380px;padding:28px 32px 24px;position:relative;
+    background:linear-gradient(180deg, rgba(80,15,15,0.95) 0%, rgba(50,8,8,0.97) 100%);
+    border:1px solid rgba(200,146,42,0.4);border-radius:12px;box-shadow:0 0 60px rgba(200,146,42,0.2),0 20px 60px rgba(0,0,0,0.5); }
+.fo-result::before { content:'';position:absolute;top:6px;left:6px;right:6px;bottom:6px;border:1px solid rgba(200,146,42,0.15);border-radius:8px;pointer-events:none; }
+.fo-result.show { display:block;animation: foResultIn 0.5s ease-out; }
+@keyframes foResultIn { from{opacity:0;transform:scale(0.8) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+.fo-particles { position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10000; }
+.fo-particle { position:absolute;width:6px;height:6px;border-radius:50%;animation: foParticleFall 2s ease-out forwards; }
+@keyframes foParticleFall {
+    0%{opacity:1;transform:translateY(0) scale(1)}
+    100%{opacity:0;transform:translateY(100vh) scale(0.3)}
+}
+.fo-mist { position:absolute;border-radius:50%;animation: foMistDrift 2.5s ease-out forwards;pointer-events:none; }
+@keyframes foMistDrift {
+    0%{opacity:0.4;transform:translateY(0) scale(0.3)}
+    100%{opacity:0;transform:translateY(100vh) scale(2.5)}
+}
+.fo-star { position:absolute;animation: foStarDrop 2.2s ease-out forwards;pointer-events:none; }
+@keyframes foStarDrop {
+    0%{opacity:1;transform:translateY(0) rotate(0deg)}
+    100%{opacity:0;transform:translateY(100vh) rotate(360deg)}
+}
+.fo-petal { position:absolute;border-radius:50% 0 50% 0;animation: foPetalFall 3s ease-out forwards;pointer-events:none; }
+@keyframes foPetalFall {
+    0%{opacity:0.9;transform:translateY(0) translateX(0) rotate(0deg)}
+    100%{opacity:0;transform:translateY(100vh) translateX(30px) rotate(360deg)}
+}
+/* Fortune card extra items transition */
+.fo-extra { max-width:0;opacity:0;overflow:hidden;white-space:nowrap;display:inline-block;margin-right:0;font-size:11px;
+    transition:max-width 0.35s ease,opacity 0.3s ease,margin-right 0.35s ease; }
+.fo-extra.expanded { max-width:200px;opacity:1;margin-right:4px; }
+</style>
+
+<!-- Row 2: Tasks + Exams (equal height) -->
+<div class="row g-3 mb-3 align-items-stretch">
+    <!-- Tasks -->
+    <div class="col-md-7 d-flex">
+        <div class="card w-100 d-flex flex-column">
+            <div class="card-title flex-shrink-0">
+                <i class="bi bi-check2-square"></i> 今日任务
+            </div>
+            <form method="POST" action="{{ url_for('tasks.add_task') }}" style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
+                <input name="title" class="form-control" placeholder="快速添加任务... (/)" style="font-size:13px;" id="quickAdd" autocomplete="off">
+                <input type="hidden" name="priority" value="2">
+                <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:13px;white-space:nowrap;">添加</button>
+            </form>
+            <div class="task-scroll flex-grow-1" style="overflow-y:auto;max-height:150px;">
+                {% if today_tasks %}
+                {% for task in today_tasks %}
+                <div class="task-item">
+                    <div class="priority-dot priority-{{ task.priority }}"></div>
+                    <form method="POST" action="{{ url_for('tasks.toggle_task', id=task.id) }}" style="margin:0;">
+                        <div class="task-check" onclick="this.closest('form').submit()">
+                            {% if task.status == 'done' %}<i class="bi bi-check" style="font-size:12px;"></i>{% endif %}
+                        </div>
+                    </form>
+                    <div class="task-title">{{ task.title }}</div>
+                    {% if task.course_name %}
+                    <span class="course-tag" style="background:{{ task.course_color }};">{{ task.course_name }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="text-align:center;padding:40px 20px;color:#a0aec0;">
+                    <i class="bi bi-inbox" style="font-size:36px;display:block;margin-bottom:8px;"></i>
+                    <div style="font-size:14px;">今天没有待办任务</div>
+                    <div style="font-size:12px;margin-top:4px;">在上方输入框快速添加</div>
+            </div>
+                {% endif %}
+            </div>
+            <div style="text-align:center;padding-top:12px;flex-shrink:0;border-top:1px solid var(--border);margin-top:auto;">
+                <a href="{{ url_for('tasks.tasks') }}" style="font-size:13px;color:#4A90D9;text-decoration:none;">查看全部任务 →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exams -->
+    <div class="col-md-5 d-flex">
+        <div class="card w-100 d-flex flex-column">
+            <div class="card-title flex-shrink-0">
+                <i class="bi bi-calendar-event"></i> 即将到来的考试
+            </div>
+            <div class="flex-grow-1" style="overflow-y:auto;max-height:200px;">
+                {% if upcoming_exams %}
+                {% for exam in upcoming_exams %}
+                <div class="exam-card">
+                    <div class="exam-days" style="background:{{ exam.course_color or '#4A90D9' }};">
+                        <span class="num">{{ exam.days_left }}</span>
+                        <span class="unit">天</span>
+                    </div>
+                    <div>
+                        <div style="font-weight:600;font-size:14px;">{{ exam.name }}</div>
+                        <div style="font-size:12px;color:#a0aec0;">
+                            {{ (exam.exam_date|string)[:10] }}
+                            {% if exam.course_name %}
+                            · <span class="course-tag" style="background:{{ exam.course_color }};">{{ exam.course_name }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="text-align:center;padding:40px 20px;color:#a0aec0;">
+                    <i class="bi bi-calendar-check" style="font-size:36px;display:block;margin-bottom:8px;"></i>
+                    <div style="font-size:14px;">暂无考试安排</div>
+                    <div style="font-size:12px;margin-top:4px;">
+                        <a href="{{ url_for('exams.exams') }}" style="color:#4A90D9;text-decoration:none;">去添加考试 →</a>
+                    </div>
+                {% endif %}
+            </div>
+            <div style="text-align:center;padding-top:12px;flex-shrink:0;border-top:1px solid var(--border);margin-top:auto;">
+                <a href="{{ url_for('exams.exams') }}" style="font-size:13px;color:#4A90D9;text-decoration:none;">管理考试 →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Chart + Pomodoro (equal height) -->
+<div class="row g-3 align-items-stretch">
+    <!-- Weekly chart -->
+    <div class="col-md-8 d-flex">
+        <div class="card w-100 d-flex flex-column">
+            <div class="card-title flex-shrink-0">
+                <i class="bi bi-bar-chart"></i> 本周学习时长
+            </div>
+            <div class="chart-bar flex-grow-1" id="weekChart" style="min-height:120px;"></div>
+            <div style="text-align:center;padding-top:12px;flex-shrink:0;border-top:1px solid var(--border);">
+                <a href="{{ url_for('stats.stats') }}" style="font-size:13px;color:#4A90D9;text-decoration:none;">查看统计 →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pomodoro -->
+    <div class="col-md-4 d-flex">
+        <div class="card w-100 d-flex flex-column align-items-center justify-content-center" style="text-align:center;">
+            <div class="card-title flex-shrink-0" style="width:100%;">
+                <i class="bi bi-stopwatch"></i> 番茄钟
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div style="font-size:42px;font-weight:800;color:#4A90D9;line-height:1;">{{ today_minutes }}</div>
+                <div style="font-size:12px;color:#a0aec0;margin:6px 0 16px;">今日学习 (分钟)</div>
+                <a href="{{ url_for('pomodoro.pomodoro') }}" class="btn btn-primary btn-sm" style="font-size:13px;">
+                    <i class="bi bi-play-fill"></i> 开始专注
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') {
+        const input = document.getElementById('quickAdd');
+        if (input && input.value.trim()) input.closest('form').submit();
+    }
+    if (e.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        document.getElementById('quickAdd')?.focus();
+    }
+});
+
+// Greeting
+const h = new Date().getHours();
+const el = document.getElementById('greeting');
+if (h < 6) el.textContent = '🌙 夜深了';
+else if (h < 9) el.textContent = '🌅 早上好';
+else if (h < 12) el.textContent = '☀️ 上午好';
+else if (h < 14) el.textContent = '🌤 中午好';
+else if (h < 18) el.textContent = '☕ 下午好';
+else if (h < 22) el.textContent = '🌆 晚上好';
+else el.textContent = '🌙 夜深了';
+
+// ─── Daily Quote ───
+(function() {
+    const QUOTES = [
+        // ── 东方哲思 ──
+        { text: '学而不思则罔，思而不学则殆。', author: '孔子' },
+        { text: '知之者不如好之者，好之者不如乐之者。', author: '孔子' },
+        { text: '朝闻道，夕死可矣。', author: '孔子' },
+        { text: '不患无位，患所以立。', author: '孔子' },
+        { text: '不积跬步，无以至千里。', author: '荀子' },
+        { text: '锲而不舍，金石可镂。', author: '荀子' },
+        { text: '青，取之于蓝而青于蓝。', author: '荀子' },
+        { text: '合抱之木，生于毫末；九层之台，起于累土。', author: '老子' },
+        { text: '大音希声，大象无形。', author: '老子' },
+        { text: '知人者智，自知者明。胜人者有力，自胜者强。', author: '老子' },
+        { text: '吾生也有涯，而知也无涯。', author: '庄子' },
+        { text: '井蛙不可以语于海，夏虫不可以语于冰。', author: '庄子' },
+        { text: '虽千万人，吾往矣。', author: '孟子' },
+        { text: '穷则独善其身，达则兼济天下。', author: '孟子' },
+        { text: '博观而约取，厚积而薄发。', author: '苏轼' },
+        { text: '古之立大事者，不惟有超世之才，亦必有坚忍不拔之志。', author: '苏轼' },
+        { text: '纸上得来终觉浅，绝知此事要躬行。', author: '陆游' },
+        { text: '天下事有难易乎？为之，则难者亦易矣。', author: '彭端淑' },
+        { text: '山重水复疑无路，柳暗花明又一村。', author: '陆游' },
+        { text: '不畏浮云遮望眼，自缘身在最高层。', author: '王安石' },
+        { text: '寄蜉蝣于天地，渺沧海之一粟。', author: '苏轼' },
+        // ── 近世洞见 ──
+        { text: '于浩歌狂热之际中寒，于天上看见深渊。', author: '鲁迅' },
+        { text: '日拱一卒，功不唐捐。', author: '胡适' },
+        { text: '怕什么真理无穷，进一寸有一寸的欢喜。', author: '胡适' },
+        { text: '人生最遗憾的，莫过于轻易地放弃了不该放弃的。', author: '柏拉图' },
+        { text: '人是一根会思考的芦苇。', author: '帕斯卡' },
+        // ── 西方哲思 ──
+        { text: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', author: 'Aristotle' },
+        { text: 'The unexamined life is not worth living.', author: 'Socrates' },
+        { text: 'Simplicity is the ultimate sophistication.', author: 'Leonardo da Vinci' },
+        { text: 'Luck is what happens when preparation meets opportunity.', author: 'Seneca' },
+        { text: 'The impediment to action advances action. What stands in the way becomes the way.', author: 'Marcus Aurelius' },
+        { text: 'He who has a why to live can bear almost any how.', author: 'Nietzsche' },
+        { text: 'He who fights with monsters should look to it that he himself does not become a monster.', author: 'Nietzsche' },
+        { text: 'I think, therefore I am.', author: 'Descartes' },
+        { text: 'To be is to be perceived.', author: 'George Berkeley' },
+        { text: 'One cannot step twice in the same river.', author: 'Heraclitus' },
+        { text: 'The limits of my language mean the limits of my world.', author: 'Wittgenstein' },
+        { text: 'Man is condemned to be free.', author: 'Sartre' },
+        { text: 'In the middle of difficulty lies opportunity.', author: 'Albert Einstein' },
+        { text: 'Imagination is more important than knowledge.', author: 'Albert Einstein' },
+        { text: 'It does not matter how slowly you go as long as you do not stop.', author: 'Confucius' },
+        // ── 冷门真知 ──
+        { text: 'The first principle is that you must not fool yourself — and you are the easiest person to fool.', author: 'Richard Feynman' },
+        { text: 'A problem well stated is a problem half solved.', author: 'Charles Kettering' },
+        { text: 'The real problem is not whether machines think but whether men do.', author: 'B.F. Skinner' },
+        { text: 'The best way to have a good idea is to have lots of ideas.', author: 'Linus Pauling' },
+        { text: 'You do not rise to the level of your goals. You fall to the level of your systems.', author: 'James Clear' },
+        { text: 'The master has failed more times than the beginner has even tried.', author: 'Stephen McCranie' },
+        { text: 'There is no path. The path is made by walking.', author: 'Antonio Machado' },
+        { text: 'What we observe is not nature itself, but nature exposed to our method of questioning.', author: 'Werner Heisenberg' },
+        { text: 'We are drowning in information, while starving for wisdom.', author: 'E.O. Wilson' },
+    ];
+    let currentIdx = -1;
+
+    function getDateSeed() {
+        const d = new Date();
+        return d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate();
+    }
+
+    function showQuote(idx) {
+        currentIdx = idx;
+        const q = QUOTES[idx];
+        document.getElementById('quoteText').textContent = '“' + q.text + '”';
+        document.getElementById('quoteAuthor').textContent = '—— ' + q.author;
+    }
+
+    function pickOther() {
+        let idx;
+        do { idx = Math.floor(Math.random() * QUOTES.length); }
+        while (idx === currentIdx && QUOTES.length > 1);
+        return idx;
+    }
+
+    // Load: check localStorage for today's quote
+    const today = getDateSeed();
+    const saved = JSON.parse(localStorage.getItem('dailyQuote') || 'null');
+    if (saved && saved.date === today) {
+        showQuote(saved.index);
+    } else {
+        const idx = Math.floor(Math.random() * QUOTES.length);
+        showQuote(idx);
+        localStorage.setItem('dailyQuote', JSON.stringify({ date: today, index: idx }));
+    }
+
+    // Click card or refresh icon → random new quote
+    document.getElementById('dailyQuote').addEventListener('click', (e) => {
+        const idx = pickOther();
+        showQuote(idx);
+        localStorage.setItem('dailyQuote', JSON.stringify({ date: today, index: idx }));
+    });
+    document.getElementById('quoteRefresh').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = pickOther();
+        showQuote(idx);
+        localStorage.setItem('dailyQuote', JSON.stringify({ date: today, index: idx }));
+    });
+})();
+
+// Weekly chart
+fetch('/api/study-week').then(r => r.json()).then(data => {
+    const max = Math.max(...data.map(d => d.minutes), 1);
+    const container = document.getElementById('weekChart');
+    data.forEach(d => {
+        const pct = Math.max((d.minutes / max) * 100, 1);
+        container.innerHTML += `
+            <div class="chart-col">
+                <div class="chart-value">${d.minutes}m</div>
+                <div class="chart-fill" style="height:${pct}%"></div>
+                <div class="chart-label">${d.date}</div>
+            </div>`;
+    });
+});
+
+// ═══ Fortune Draw (Chinese Style) ═══
+let _fortuneData = null;
+(function(){
+    const card = document.getElementById('fortuneCard');
+    if (!card) return;
+    fetch('/api/fortune/today').then(r => r.json()).then(f => {
+        if (f.exists) {
+            _fortuneData = f;
+            renderFortune(f);
+        } else {
+            renderDrawBtn();
+            if (!sessionStorage.getItem('fortune_shown')) {
+                setTimeout(buildOverlay, 800);
+            }
+        }
+    });
+
+    function sidebarCollapsed() {
+        const sb = document.getElementById('sidebar');
+        return sb && sb.classList.contains('collapsed');
+    }
+
+    function renderFortune(f) {
+        _fortuneData = f;
+        const collapsed = sidebarCollapsed();
+        const isBad = f.level_name && f.level_name.includes('凶');
+        const accentColor = isBad ? '#8b5cf6' : 'var(--accent)';
+        card.style.display='flex';
+        card.style.alignItems='center';
+        card.style.gap='6px';
+        card.style.padding='7px 14px';
+        card.style.borderRadius='12px';
+        card.style.background='var(--card-bg)';
+        card.style.border='1px solid var(--border)';
+        card.style.borderLeft = '3px solid '+(isBad?'#8b5cf6':'var(--accent)');
+        card.innerHTML = `<span style="font-size:20px;line-height:1;flex-shrink:0;">${f.emoji||'🎋'}</span>
+            <span style="font-size:13px;font-weight:700;color:${isBad?'#a78bfa':'var(--accent)'};flex-shrink:0;">${f.level_name||'吉'}</span>
+            <span style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;">${f.text||''}</span>
+            <span class="fo-extra${collapsed?' expanded':''}"><span style="color:var(--success);">宜</span> <span style="color:var(--text-muted);">${(f.yi||[]).slice(0,2).join(' · ')}</span></span>
+            <span class="fo-extra${collapsed?' expanded':''}"><span style="color:#f87171;">忌</span> <span style="color:var(--text-muted);">${(f.buyi||[]).slice(0,2).join(' · ')}</span></span>
+            <span style="font-size:18px;font-weight:800;color:${accentColor};flex-shrink:0;">${f.lucky_number||'?'}</span>`;
+        card.onclick = function(){ buildOverlay(f); };
+    }
+
+    window._reRenderFortune = function() {
+        if (!_fortuneData) return;
+        const collapsed = sidebarCollapsed();
+        card.querySelectorAll('.fo-extra').forEach(el => {
+            el.classList.toggle('expanded', collapsed);
+        });
+    };
+
+    function renderDrawBtn() {
+        card.style.display='flex';
+        card.style.alignItems='center';
+        card.style.gap='10px';
+        card.style.padding='7px 14px';
+        card.style.borderRadius='12px';
+        card.style.background='var(--card-bg)';
+        card.style.border='1px solid var(--border)';
+        card.style.borderLeft='3px solid var(--accent)';
+        card.innerHTML = `<span style="font-size:20px;">🎋</span>
+            <div style="display:flex;flex-direction:column;gap:1px;">
+                <span style="font-size:13px;font-weight:600;color:var(--text);">今日抽签</span>
+                <span style="font-size:11px;color:var(--text-muted);opacity:0.5;">点击抽取运势</span>
+            </div>
+            <span style="font-size:16px;color:var(--accent);margin-left:auto;opacity:0.4;">→</span>`;
+        card.onclick = function(){ buildOverlay(); };
+    }
+
+    // Listen for sidebar toggle to re-render
+    document.addEventListener('sidebar-toggled', function(){ _reRenderFortune(); });
+})();
+
+// ═══ Fullscreen Fortune Overlay ═══
+function buildOverlay(showData){
+    if (document.getElementById('foOverlay')) return;
+    const o = document.createElement('div');
+    o.id = 'foOverlay';
+    o.className = 'fo-overlay';
+    o.innerHTML = `
+        <button onclick="closeFortuneOverlay()" style="position:absolute;top:16px;right:16px;width:36px;height:36px;border:1px solid rgba(255,255,255,0.2);border-radius:50%;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;"
+            onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.color='#fff'" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='rgba(255,255,255,0.6)'">✕</button>
+        <div class="fo-bucket-wrap" id="foBucket">
+            <div class="fo-bucket">
+                <div class="fo-sticks" id="foSticks"></div>
+            </div>
+            <div style="text-align:center;margin-top:16px;">
+                <div style="font-size:20px;color:#f0d78c;font-weight:700;letter-spacing:4px;text-shadow:0 0 20px rgba(200,146,42,0.4);">🪔 诚心摇签 🪔</div>
+                <div style="font-size:13px;color:rgba(200,160,80,0.5);margin-top:4px;">点击签筒，心诚则灵</div>
+            </div>
+        </div>
+        <div class="fo-result" id="foResult"></div>
+    `;
+    document.body.appendChild(o);
+    // If showing existing fortune, skip bucket
+    if (showData) {
+        document.getElementById('foBucket').style.display='none';
+        showResult(showData);
+        return;
+    }
+    // Build bamboo sticks
+    const sticks = document.getElementById('foSticks');
+    for (let i=0;i<9;i++) {
+        const s = document.createElement('div');
+        s.className='fo-stick';
+        const h = 65+Math.random()*45;
+        s.style.height = h+'px';
+        const protrude = Math.max(0, h - 60 + Math.random()*50);
+        s.style.transform = `translateY(${-protrude}px) rotate(${(Math.random()-0.5)*4}deg)`;
+        sticks.appendChild(s);
+    }
+    // Click handler
+    let drawn = false;
+    document.getElementById('foBucket').addEventListener('click', function(){
+        if (drawn) return;
+        drawn = true;
+        const wrap = this;
+        wrap.classList.add('shaking');
+        setTimeout(() => {
+            wrap.classList.remove('shaking');
+            const allSticks = sticks.querySelectorAll('.fo-stick');
+            const idx = Math.floor(Math.random() * allSticks.length);
+            const flyStick = allSticks[idx];
+            flyStick.classList.add('fly');
+            fetch('/api/fortune', {method:'POST'}).then(r=>r.json()).then(data=>{
+                setTimeout(()=>{
+                    wrap.style.display='none';
+                    showResult(data);
+                }, 600);
+            });
+        }, 700);
+    });
+}
+
+function showResult(data){
+    const result = document.getElementById('foResult');
+    result.className='fo-result show';
+    const yiHtml = (data.yi||[]).slice(0,3).map(y=>`<div style="font-size:13px;color:#86efac;margin:1px 0;">· ${y}</div>`).join('');
+    const buyiHtml = (data.buyi||[]).slice(0,3).map(b=>`<div style="font-size:13px;color:#f87171;margin:1px 0;">· ${b}</div>`).join('');
+    result.innerHTML = `
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,rgba(200,146,42,0.4),transparent);border-radius:12px 12px 0 0;"></div>
+        <div style="position:absolute;top:8px;left:8px;width:10px;height:10px;border-top:1px solid rgba(200,146,42,0.3);border-left:1px solid rgba(200,146,42,0.3);"></div>
+        <div style="position:absolute;top:8px;right:8px;width:10px;height:10px;border-top:1px solid rgba(200,146,42,0.3);border-right:1px solid rgba(200,146,42,0.3);"></div>
+        <div style="position:absolute;bottom:8px;left:8px;width:10px;height:10px;border-bottom:1px solid rgba(200,146,42,0.3);border-left:1px solid rgba(200,146,42,0.3);"></div>
+        <div style="position:absolute;bottom:8px;right:8px;width:10px;height:10px;border-bottom:1px solid rgba(200,146,42,0.3);border-right:1px solid rgba(200,146,42,0.3);"></div>
+        <div style="font-size:38px;margin-top:12px;">${data.emoji||'🎋'}</div>
+        <div style="font-size:20px;color:#f0d78c;font-weight:800;letter-spacing:8px;text-shadow:0 0 16px rgba(200,146,42,0.4);margin:6px 0 14px;">${data.level_name||'吉'}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.7);line-height:1.6;margin-bottom:18px;padding:0 4px;">
+            <span style="color:rgba(200,146,42,0.5);">「</span>${data.text||''}<span style="color:rgba(200,146,42,0.5);">」</span>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:18px;">
+            <div style="flex:1;max-width:135px;text-align:left;padding:10px 12px;background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.12);border-radius:8px;">
+                <div style="font-size:10px;color:rgba(74,222,128,0.4);margin-bottom:6px;letter-spacing:1px;">适宜</div>
+                ${yiHtml}
+            </div>
+            <div style="flex:1;max-width:135px;text-align:left;padding:10px 12px;background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.12);border-radius:8px;">
+                <div style="font-size:10px;color:rgba(248,113,113,0.4);margin-bottom:6px;letter-spacing:1px;">不宜</div>
+                ${buyiHtml}
+            </div>
+        </div>
+        <div style="font-size:9px;color:rgba(200,160,80,0.35);letter-spacing:3px;margin-bottom:4px;">LUCKY NUMBER</div>
+        <div style="font-size:26px;font-weight:800;color:#f0d78c;margin:0 0 16px;text-shadow:0 0 10px rgba(200,146,42,0.25);">${data.lucky_number||'?'}</div>
+        <button onclick="closeFortuneOverlay()" style="padding:7px 28px;border:1px solid rgba(200,146,42,0.25);border-radius:8px;background:rgba(200,146,42,0.08);color:#d0a860;font-size:12px;cursor:pointer;transition:all 0.2s;letter-spacing:2px;" 
+            onmouseover="this.style.background='rgba(200,146,42,0.2)';this.style.borderColor='rgba(200,146,42,0.5)'" onmouseout="this.style.background='rgba(200,146,42,0.08)';this.style.borderColor='rgba(200,146,42,0.25)'">心 诚 则 灵</button>
+    `;
+    spawnParticles(data);
+}
+
+function spawnParticles(data){
+    const container = document.createElement('div');
+    container.className='fo-particles';
+    const isBad = data.level_name && data.level_name.includes('凶');
+    const golds = ['#f0d78c','#c8922a','#ffd700','#ffeaa7','#dfc47a','#fef08a'];
+    const coppers = ['#c49a4a','#a07530','#8a6520','#d4b060','#9e7c40','#6b4c20'];
+    const reds = ['#ff6b6b','#ff8787','#fca5a5'];
+    const greens = ['#4ade80','#86efac','#bbf7d0'];
+    function mkDot(colors,minS,maxS,dur){
+        const p = document.createElement('div'); p.className='fo-particle';
+        p.style.background = colors[Math.floor(Math.random()*colors.length)];
+        const s = (minS||2)+Math.random()*(maxS||5); p.style.width = s+'px'; p.style.height = s+'px';
+        p.style.animationDuration = (dur||(0.8+Math.random()*1.5))+'s';
+        p.style.animationDelay = Math.random()*0.5+'s';
+        p.style.left = Math.random()*100+'%'; p.style.top = -(Math.random()*40)+'px';
+        return p;
+    }
+    if (isBad) {
+        for (let i=0;i<52;i++) container.appendChild(mkDot(coppers,3,8));
+        for (let i=0;i<39;i++){
+            const m = document.createElement('div'); m.className='fo-particle fo-mist';
+            m.style.left = (10+Math.random()*80)+'%'; m.style.top = -(Math.random()*50)+'px';
+            m.style.background = `radial-gradient(circle, rgba(160,120,80,0.35), transparent)`;
+            const w = 10+Math.random()*14; m.style.width = w+'px'; m.style.height = w+'px';
+            m.style.animationDuration = (2+Math.random()*3)+'s'; m.style.animationDelay = Math.random()*0.6+'s';
+            container.appendChild(m);
+        }
+        for (let i=0;i<21;i++){
+            const s = document.createElement('div'); s.className='fo-particle fo-star';
+            s.style.left = (5+Math.random()*90)+'%'; s.style.top = -(Math.random()*30)+'px';
+            s.textContent = '✦'; s.style.color = coppers[i%6];
+            s.style.fontSize = (10+Math.random()*12)+'px';
+            s.style.animationDuration = (2+Math.random()*3)+'s'; s.style.animationDelay = Math.random()*0.4+'s';
+            container.appendChild(s);
+        }
+    } else {
+        for (let i=0;i<117;i++) container.appendChild(mkDot(golds,3,8));
+        for (let i=0;i<20;i++){
+            const p = mkDot(i%2?reds:greens,5,8);
+            p.style.borderRadius='2px'; p.style.animationDuration = (2+Math.random()*3.5)+'s';
+            p.style.left = (20+Math.random()*60)+'%'; p.style.top = -(Math.random()*25)+'px';
+            container.appendChild(p);
+        }
+        for (let i=0;i<31;i++){
+            const s = document.createElement('div'); s.className='fo-particle fo-star';
+            s.style.left = (5+Math.random()*90)+'%'; s.style.top = -(Math.random()*35)+'px';
+            s.textContent = ['✦','✧','⭑','✶','✨','⚝'][i%6];
+            s.style.color = ['#f0d78c','#ffd700','#ffeaa7','#fffbeb','#fef08a','#fff'][i%6];
+            s.style.fontSize = (10+Math.random()*14)+'px';
+            s.style.animationDuration = (2+Math.random()*3)+'s'; s.style.animationDelay = Math.random()*0.4+'s';
+            container.appendChild(s);
+        }
+        for (let i=0;i<21;i++){
+            const l = document.createElement('div'); l.className='fo-particle fo-petal';
+            l.style.left = (5+Math.random()*90)+'%'; l.style.top = -(Math.random()*40)+'px';
+            l.style.background = ['#ff8787','#fca5a5','#fecaca','#ff6b6b','#fbcfe8'][i%5];
+            const w = 6+Math.random()*8; l.style.width = w+'px'; l.style.height = w+'px';
+            l.style.animationDuration = (2.5+Math.random()*3.5)+'s'; l.style.animationDelay = Math.random()*0.5+'s';
+            container.appendChild(l);
+        }
+    }
+    document.body.appendChild(container);
+    setTimeout(()=>container.remove(), 3000);
+}
+
+window._drawFortune = function(){
+    buildOverlay();
+};
+
+function closeFortuneOverlay(){
+    const o = document.getElementById('foOverlay');
+    if (o) { o.style.opacity='0'; o.style.transition='opacity 0.3s'; setTimeout(()=>o.remove(), 300); }
+    sessionStorage.setItem('fortune_shown', '1');
+    fetch('/api/fortune/today').then(r=>r.json()).then(f => {
+        if (!f.exists) return;
+        _fortuneData = f;
+        if (typeof renderFortune !== 'undefined') {
+            // Find and call renderFortune from the IIFE
+            const card = document.getElementById('fortuneCard');
+            if (!card) return;
+            const collapsed = document.getElementById('sidebar')?.classList.contains('collapsed');
+            const isBad = f.level_name && f.level_name.includes('凶');
+            const accentColor = isBad ? '#8b5cf6' : 'var(--accent)';
+            card.style.display='flex'; card.style.alignItems='center'; card.style.gap='10px';
+            card.style.padding='7px 14px'; card.style.borderRadius='12px';
+            card.style.background='var(--card-bg)'; card.style.border='1px solid var(--border)';
+            card.style.borderLeft = '3px solid '+(isBad?'#8b5cf6':'var(--accent)');
+            if (collapsed) {
+                card.innerHTML = `<span style="font-size:20px;line-height:1;flex-shrink:0;">${f.emoji||'🎋'}</span>
+                    <span style="font-size:13px;font-weight:700;color:${isBad?'#a78bfa':'var(--accent)'};flex-shrink:0;">${f.level_name||'吉'}</span>
+                    <span style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;">${f.text||''}</span>
+                    <span style="font-size:11px;white-space:nowrap;flex-shrink:0;"><span style="color:var(--success);">宜</span> <span style="color:var(--text-muted);">${(f.yi||[]).slice(0,2).join(' · ')}</span></span>
+                    <span style="font-size:11px;white-space:nowrap;flex-shrink:0;"><span style="color:#f87171;">忌</span> <span style="color:var(--text-muted);">${(f.buyi||[]).slice(0,2).join(' · ')}</span></span>
+                    <span style="font-size:18px;font-weight:800;color:${accentColor};flex-shrink:0;">${f.lucky_number||'?'}</span>`;
+            } else {
+                card.innerHTML = `<span style="font-size:20px;line-height:1;flex-shrink:0;">${f.emoji||'🎋'}</span>
+                    <span style="font-size:13px;font-weight:700;color:${isBad?'#a78bfa':'var(--accent)'};flex-shrink:0;">${f.level_name||'吉'}</span>
+                    <span style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;">${f.text||''}</span>
+                    <span style="font-size:18px;font-weight:800;color:${accentColor};flex-shrink:0;">${f.lucky_number||'?'}</span>`;
+            }
+            card.onclick = function(){ buildOverlay(f); };
+        }
+    });
+}
+
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtualenv
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database (user data, not source)
+*.db
+
+# PyInstaller artifacts
+*.spec
+*.toc
+*.pkg
+*.pyz
+base_library.zip
+warn-*.txt
+xref-*.html
+
+# Build output
+AstroStudy/
+localpycs/
+
+# Backups
+backups/
+study-planner-v*/
+*.bak
+*.bak2
+*.bak-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
