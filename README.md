@@ -1,4 +1,4 @@
-# 🦞 AstroStudy
+# AstroStudy
 
 > 一个 Flask + Bootstrap 5 构建的全栈学习备考助手，助你高效规划、专注冲刺。
 
@@ -37,7 +37,7 @@
 - 支持课程 / 任务 / 笔记 / 考试全量检索
 
 ### 🎨 其他亮点
-- 🦞 吉祥物动画（Rive runtime）
+- 吉祥物动画（Rive runtime）
 - 🌓 响应式设计，手机 / 平板 / 桌面全适配
 - 📦 PyInstaller 一键打包为 Windows exe
 
