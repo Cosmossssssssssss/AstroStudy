@@ -206,7 +206,7 @@ def create_tutorial_note(db, user_id):
         return
     title = '🎓 AstroStudy 使用指南'
     cursor = db.execute(
-        'INSERT INTO notes (title, content, markdown, user_id) VALUES (?,?,?,?)',
+        'INSERT INTO notes (title, content, markdown, pinned, favorited, user_id) VALUES (?,?,?,1,1,?)',
         (title, tutorial_md, tutorial_md, user_id)
     )
     db.commit()

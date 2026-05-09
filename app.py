@@ -76,9 +76,12 @@ def get_db():
 
 @app.after_request
 def add_no_cache(response):
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
+    # 只对 HTML 页面禁用缓存，静态资源允许浏览器缓存
+    ct = response.content_type or ''
+    if 'text/html' in ct:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
     return response
 
 @app.teardown_appcontext
@@ -433,12 +436,20 @@ from blueprints.utils import safe_int, safe_route
 
 if __name__ == '__main__':
     init_db()
-    import threading
-    import webview
-    url = 'http://127.0.0.1:5000'
-    # Start Flask in background, then open native window
-    def start_flask():
-        app.run(debug=False, port=5000, host='127.0.0.1')
-    threading.Thread(target=start_flask, daemon=True).start()
-    webview.create_window('AstroStudy v2.0', url, width=1200, height=800, min_size=(900, 600))
-    webview.start()
+    use_browser = '--browser' in sys.argv
+    try:
+        import webview
+        if use_browser:
+            raise ImportError  # 跳过 webview，走浏览器模式
+        import threading
+        url = 'http://127.0.0.1:5000'
+        def start_flask():
+            app.run(debug=False, port=5000, host='127.0.0.1')
+        threading.Thread(target=start_flask, daemon=True).start()
+        webview.create_window('AstroStudy v2.0.1', url, width=1200, height=800, min_size=(900, 600))
+        webview.start()
+    except ImportError:
+        mode = '浏览器模式' if use_browser else 'Flask 开发模式'
+        print(f'AstroStudy v2.0.1 启动中 ({mode})...')
+        print('浏览器访问 http://127.0.0.1:5000')
+        app.run(debug=True, port=5000, host='127.0.0.1')

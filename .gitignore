@@ -45,6 +45,11 @@ study-planner-v*/
 .DS_Store
 Thumbs.db
 
+# Soft copyright materials (DO NOT UPLOAD)
+软著材料/
+gen_pdfs.py
+用户手册.md
+
 # Environment
 .env
 .env.*

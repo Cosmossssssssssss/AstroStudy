@@ -120,6 +120,7 @@
 /* Dark mode: force sidebar glass */
 :root[color-mode="dark"] .sidebar { background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-color: var(--glass-border); }
 :root[color-mode="dark"] .sidebar-brand { color: var(--accent); }
+:root[color-mode="dark"] .sidebar-brand img, :root[color-mode="dark"] .logo-home { filter: invert(1); }
 :root[color-mode="dark"] .sidebar-nav a { color: var(--text-secondary); }
 :root[color-mode="dark"] .sidebar-nav a:hover { box-shadow: var(--neu-pressed); color: var(--accent); }
 :root[color-mode="dark"] .sidebar-nav a.active { box-shadow: var(--neu-glow), var(--neu-pressed); color: var(--accent); }

@@ -52,15 +52,15 @@ def register():
         email = request.form.get('email', '').strip()
         password = request.form['password']
         # Validate
-        if not username or len(username) < 2:
-            flash('用户名至少 2 个字符', 'error')
-            return redirect(url_for('auth.register'))
+        if not username or len(username) < 3:
+            flash('用户名至少 3 个字符', 'error')
+            return render_template('register.html', active_panel='register')
         if not email or not _is_email(email):
             flash('请输入有效的邮箱地址', 'error')
-            return redirect(url_for('auth.register'))
+            return render_template('register.html', active_panel='register')
         if not password or len(password) < 3:
             flash('密码至少 3 个字符', 'error')
-            return redirect(url_for('auth.register'))
+            return render_template('register.html', active_panel='register')
         db = get_db()
         try:
             db.execute(
